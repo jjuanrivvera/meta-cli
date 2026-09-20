@@ -57,7 +57,7 @@ func TestAuthCommands(t *testing.T) {
 			http.NotFound(writer, request)
 		}
 	})
-	require.NoError(t, test.run("--base-url", serverURL, "--upload-url", serverURL, "--app-id", "app-1", "auth", "login", "--token", "test-token", "--app-secret", "test-secret"))
+	require.NoError(t, test.run("--base-url", serverURL, "--upload-url", serverURL, "--app-id", "app-1", "auth", "login", "--token", "test-token"))
 	assert.Contains(t, test.output.String(), "credential stored")
 	value, err := config.Load(test.configPath)
 	require.NoError(t, err)

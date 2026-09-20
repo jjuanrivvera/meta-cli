@@ -14,6 +14,11 @@ import (
 
 const DefaultGraphVersion = "v26.0"
 
+var (
+	userConfigDir = os.UserConfigDir
+	createTemp    = os.CreateTemp
+)
+
 type Account struct {
 	BaseURL      string  `yaml:"base_url,omitempty" json:"base_url,omitempty"`
 	UploadURL    string  `yaml:"upload_url,omitempty" json:"upload_url,omitempty"`
@@ -35,14 +40,11 @@ type Config struct {
 }
 
 func Path() (string, error) {
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "metactl", "config.yaml"), nil
-	}
-	home, err := os.UserHomeDir()
+	dir, err := userConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("resolve home directory: %w", err)
+		return "", fmt.Errorf("resolve user config directory: %w", err)
 	}
-	return filepath.Join(home, ".metactl-cli", "config.yaml"), nil
+	return filepath.Join(dir, "metactl", "config.yaml"), nil
 }
 
 func Load(configPath string) (*Config, error) {
@@ -94,7 +96,7 @@ func Save(configPath string, value *Config) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create config directory: %w", err)
 	}
-	temporary, err := os.CreateTemp(dir, ".config-*")
+	temporary, err := createTemp(dir, ".config-*")
 	if err != nil {
 		return fmt.Errorf("create temporary config: %w", err)
 	}

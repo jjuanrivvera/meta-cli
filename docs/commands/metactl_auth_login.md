@@ -16,8 +16,8 @@ metactl auth login [flags]
 ### Options
 
 ```
-      --app-secret string   app secret for appsecret_proof; stored separately
   -h, --help                help for login
+      --prompt-app-secret   prompt without echo for an app secret to store
       --token string        access token; omit to read it without echo
 ```
 

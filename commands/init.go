@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -15,7 +16,8 @@ func init() {
 
 func newInitCmd(options *globalOptions) *cobra.Command {
 	var account config.Account
-	var token, appSecret string
+	var token string
+	var promptAppSecret bool
 	command := &cobra.Command{
 		Use:     "init",
 		Aliases: []string{"setup"},
@@ -49,6 +51,14 @@ func newInitCmd(options *globalOptions) *cobra.Command {
 			if token == "" {
 				return fmt.Errorf("access token is required")
 			}
+			appSecret := os.Getenv("METACTL_APP_SECRET")
+			if promptAppSecret && appSecret == "" {
+				var promptErr error
+				appSecret, promptErr = promptSecret(command, "App secret: ")
+				if promptErr != nil {
+					return promptErr
+				}
+			}
 			value, err := config.Load(options.deps.ConfigPath)
 			if err != nil {
 				return err
@@ -69,7 +79,7 @@ func newInitCmd(options *globalOptions) *cobra.Command {
 	}
 	flags := command.Flags()
 	flags.StringVar(&token, "token", "", "access token; omit to read it without echo")
-	flags.StringVar(&appSecret, "app-secret", "", "optional app secret for appsecret_proof")
+	flags.BoolVar(&promptAppSecret, "prompt-app-secret", false, "prompt without echo for an app secret to store")
 	flags.StringVar(&account.BaseURL, "graph-url", "", "Graph API base URL")
 	flags.StringVar(&account.UploadURL, "resumable-url", "", "resumable upload base URL")
 	flags.StringVar(&account.GraphVersion, "version", "", "Graph API version")

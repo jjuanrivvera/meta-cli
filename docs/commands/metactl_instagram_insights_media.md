@@ -10,7 +10,7 @@ metactl instagram insights media MEDIA_ID [flags]
 
 ```
   -h, --help             help for media
-      --metrics string   comma-separated metrics (default "reach,likes,comments,views")
+      --metrics string   comma-separated metrics supported by the configured Graph version
 ```
 
 ### Options inherited from parent commands

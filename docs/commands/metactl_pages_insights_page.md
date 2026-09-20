@@ -10,7 +10,7 @@ metactl pages insights page [flags]
 
 ```
   -h, --help             help for page
-      --metrics string   comma-separated metrics (default "page_views_total,page_post_engagements")
+      --metrics string   comma-separated metrics supported by the configured Graph version
       --period string    metric period (default "day")
 ```
 

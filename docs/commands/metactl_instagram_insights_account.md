@@ -10,7 +10,7 @@ metactl instagram insights account [flags]
 
 ```
   -h, --help             help for account
-      --metrics string   comma-separated metrics (default "reach,profile_views")
+      --metrics string   comma-separated metrics supported by the configured Graph version
       --period string    metric period (default "day")
 ```
 

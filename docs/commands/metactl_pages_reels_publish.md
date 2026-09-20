@@ -9,10 +9,15 @@ metactl pages reels publish [flags]
 ### Options
 
 ```
-      --description string   reel description
-  -h, --help                 help for publish
-      --thumb-offset int     thumbnail frame offset in milliseconds
-      --video string         local path or public hosted video URL
+      --description string              reel description
+  -h, --help                            help for publish
+      --poll-attempts int               maximum processing status checks (default 60)
+      --poll-interval duration          processing status poll interval (default 5s)
+      --scheduled-at int                Unix timestamp for scheduled publishing
+      --thumbnail-content-type string   thumbnail MIME type; inferred when omitted
+      --thumbnail-file string           local custom cover image
+      --title string                    reel title
+      --video string                    local path or public hosted video URL
 ```
 
 ### Options inherited from parent commands

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -21,6 +22,7 @@ type operationSpec struct {
 	Args    cobra.PositionalArgs
 	Columns []string
 	Flags   func(*cobra.Command)
+	Confirm func() string
 	Run     func(*cobra.Command, *globalOptions, *api.Client, config.Account, []string) (any, error)
 }
 
@@ -29,9 +31,19 @@ func newOperationCommand(options *globalOptions, spec operationSpec) *cobra.Comm
 	command := &cobra.Command{
 		Use: spec.Use, Aliases: spec.Aliases, Short: spec.Short, Long: spec.Long,
 		Example: spec.Example, Args: spec.Args,
-		RunE: func(command *cobra.Command, args []string) error {
+		RunE: func(command *cobra.Command, args []string) (runErr error) {
+			defer closeMCPConfinement(command.Context())
+			defer func() { runErr = options.sanitizeError(runErr) }()
+			client, _, account, err := options.clientForCommand(command)
+			if err != nil {
+				return err
+			}
 			if spec.Kind == kindDestructive && !yes && !options.dryRun {
-				answer, err := promptLine(command, "This operation is destructive. Continue? [y/N] ")
+				message := "This operation is destructive. Continue? [y/N] "
+				if spec.Confirm != nil {
+					message = spec.Confirm()
+				}
+				answer, err := promptLine(command, message)
 				if err != nil {
 					return err
 				}
@@ -39,18 +51,13 @@ func newOperationCommand(options *globalOptions, spec operationSpec) *cobra.Comm
 					return fmt.Errorf("aborted")
 				}
 			}
-			client, _, account, err := options.clientFor()
-			if err != nil {
-				return err
-			}
 			result, err := spec.Run(command, options, client, account, args)
-			if err != nil {
-				return err
+			if result != nil {
+				if renderErr := options.render(result, spec.Columns); renderErr != nil {
+					return renderErr
+				}
 			}
-			if result == nil {
-				return nil
-			}
-			return options.render(result, spec.Columns)
+			return err
 		},
 	}
 	if spec.Kind == kindDestructive {
@@ -61,6 +68,21 @@ func newOperationCommand(options *globalOptions, spec operationSpec) *cobra.Comm
 	}
 	annotate(command, spec.Kind)
 	return command
+}
+
+type exitCoder interface{ ExitCode() int }
+
+type partialFailureError struct{ message string }
+
+func (err *partialFailureError) Error() string { return err.message }
+func (err *partialFailureError) ExitCode() int { return 2 }
+
+func ExitCode(err error) int {
+	var coded exitCoder
+	if errors.As(err, &coded) {
+		return coded.ExitCode()
+	}
+	return 1
 }
 
 func newGroup(use, short string, aliases []string, options *globalOptions, specs ...operationSpec) *cobra.Command {

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -152,21 +150,40 @@ func uploadInstagramContainer(command *cobra.Command, client *api.Client, contai
 	if (filePath == "") == (hostedURL == "") {
 		return nil, fmt.Errorf("use exactly one of --file or --url")
 	}
-	headers := make(http.Header)
-	var body []byte
-	if filePath != "" {
-		var err error
-		body, err = os.ReadFile(filePath) // #nosec G304 -- the user explicitly selected this upload file
-		if err != nil {
-			return nil, fmt.Errorf("read upload file: %w", err)
-		}
-		headers.Set("offset", "0")
-		headers.Set("file_size", strconv.Itoa(len(body)))
-		headers.Set("Content-Type", "application/octet-stream")
-	} else {
+	if hostedURL != "" {
+		headers := make(http.Header)
 		headers.Set("file_url", hostedURL)
+		return uploadResponse(command, client, api.Request{Method: http.MethodPost, Path: "ig-api-upload/" + containerID, Headers: headers, Upload: true, Idempotent: true})
 	}
-	return uploadResponse(command, client, api.Request{Method: http.MethodPost, Path: "ig-api-upload/" + containerID, Headers: headers, Body: body, Upload: true, Idempotent: true})
+	offset := int64(0)
+	var lastErr error
+	for resume := 0; resume < 4; resume++ {
+		request, size, err := rawUploadRequest(command.Context(), "ig-api-upload/"+containerID, filePath, offset)
+		if err != nil {
+			return nil, err
+		}
+		response, err := client.Do(command.Context(), request)
+		if err == nil {
+			return decodeResponse(response)
+		}
+		lastErr = err
+		status, statusErr := client.Read(command.Context(), containerID, url.Values{"fields": {"id,status,status_code,video_status"}})
+		if statusErr != nil {
+			return nil, fmt.Errorf("upload failed: %w; query resume offset: %w", err, statusErr)
+		}
+		next := uploadOffset(status)
+		if next > size {
+			return nil, fmt.Errorf("graph reported upload offset %d beyond file size %d", next, size)
+		}
+		if next == size {
+			return map[string]any{"success": true, "bytes_transferred": next, "resumed": true}, nil
+		}
+		if next <= offset {
+			return nil, err
+		}
+		offset = next
+	}
+	return nil, fmt.Errorf("resumable upload did not complete: %w", lastErr)
 }
 
 func instagramPublish(options *globalOptions) *cobra.Command {
@@ -184,8 +201,8 @@ func instagramPublish(options *globalOptions) *cobra.Command {
 			command.Flags().StringVar(&firstComment, "first-comment", "", "comment to create after publishing")
 			command.Flags().IntVar(&thumbOffset, "thumb-offset", 0, "thumbnail frame offset in milliseconds")
 			command.Flags().BoolVar(&shareToFeed, "share-to-feed", true, "also show the reel in the feed")
-			command.Flags().DurationVar(&pollInterval, "poll-interval", 2*time.Second, "container status poll interval")
-			command.Flags().IntVar(&attempts, "poll-attempts", 60, "maximum status checks")
+			command.Flags().DurationVar(&pollInterval, "poll-interval", time.Minute, "container status poll interval")
+			command.Flags().IntVar(&attempts, "poll-attempts", 5, "maximum status checks")
 			_ = command.MarkFlagRequired("video")
 		},
 		Run: func(command *cobra.Command, current *globalOptions, client *api.Client, account config.Account, _ []string) (any, error) {
@@ -241,7 +258,15 @@ func publishInstagramReel(command *cobra.Command, options *globalOptions, client
 	if firstComment != "" {
 		commentBody, _ := json.Marshal(map[string]any{"message": firstComment})
 		if _, err := client.Write(command.Context(), mediaID+"/comments", nil, commentBody); err != nil {
-			return nil, err
+			result := published
+			if object, ok := published.(map[string]any); ok {
+				object["first_comment_status"] = "failed"
+				object["first_comment_error"] = err.Error()
+			} else {
+				result = map[string]any{"id": mediaID, "published": published, "first_comment_status": "failed", "first_comment_error": err.Error()}
+			}
+			fmt.Fprintf(command.ErrOrStderr(), "warning: reel %s was published, but its first comment failed\n", mediaID)
+			return result, &partialFailureError{message: fmt.Sprintf("reel %s was published but the first comment failed: %v", mediaID, err)}
 		}
 	}
 	return published, nil
@@ -258,8 +283,10 @@ func waitForInstagramContainer(command *cobra.Command, options *globalOptions, c
 		}
 		code := strings.ToUpper(stringField(status, "status_code"))
 		switch code {
-		case "FINISHED", "PUBLISHED":
+		case "FINISHED":
 			return status, nil
+		case "PUBLISHED":
+			return nil, fmt.Errorf("container %s is already PUBLISHED; refusing a duplicate publish", containerID)
 		case "ERROR", "EXPIRED":
 			return nil, fmt.Errorf("container %s entered %s status", containerID, code)
 		}
@@ -346,8 +373,9 @@ func instagramCommentWrite(use, short, edge string, _ *globalOptions) (operation
 func instagramInsights(options *globalOptions) *cobra.Command {
 	var accountMetrics, mediaMetrics, period string
 	accountSpec := operationSpec{Use: "account", Short: "Get Instagram account insights", Kind: kindRead, Flags: func(command *cobra.Command) {
-		command.Flags().StringVar(&accountMetrics, "metrics", "reach,profile_views", "comma-separated metrics")
+		command.Flags().StringVar(&accountMetrics, "metrics", "", "comma-separated metrics supported by the configured Graph version")
 		command.Flags().StringVar(&period, "period", "day", "metric period")
+		_ = command.MarkFlagRequired("metrics")
 	}, Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, account config.Account, _ []string) (any, error) {
 		id, err := requireID(account.InstagramID, "instagram-id")
 		if err != nil {
@@ -356,7 +384,8 @@ func instagramInsights(options *globalOptions) *cobra.Command {
 		return client.Read(command.Context(), id+"/insights", url.Values{"metric": {accountMetrics}, "period": {period}})
 	}}
 	mediaSpec := operationSpec{Use: "media MEDIA_ID", Short: "Get Instagram media insights", Kind: kindRead, Args: cobra.ExactArgs(1), Flags: func(command *cobra.Command) {
-		command.Flags().StringVar(&mediaMetrics, "metrics", "reach,likes,comments,views", "comma-separated metrics")
+		command.Flags().StringVar(&mediaMetrics, "metrics", "", "comma-separated metrics supported by the configured Graph version")
+		_ = command.MarkFlagRequired("metrics")
 	}, Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, _ config.Account, args []string) (any, error) {
 		return client.Read(command.Context(), args[0]+"/insights", url.Values{"metric": {mediaMetrics}})
 	}}

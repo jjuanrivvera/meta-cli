@@ -11,7 +11,8 @@ metactl pages reels finish [flags]
 ```
       --description string   reel description
   -h, --help                 help for finish
-      --thumb-offset int     thumbnail frame offset in milliseconds
+      --scheduled-at int     Unix timestamp for scheduled publishing
+      --title string         reel title
       --video-id string      uploaded video id
 ```
 

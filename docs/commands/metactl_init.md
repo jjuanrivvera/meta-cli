@@ -16,13 +16,13 @@ metactl init [flags]
 
 ```
       --app string             Meta app id
-      --app-secret string      optional app secret for appsecret_proof
       --business string        Meta business id
       --graph-url string       Graph API base URL
   -h, --help                   help for init
       --instagram string       Instagram professional account id
       --page string            Facebook Page id
       --phone string           WhatsApp phone number id
+      --prompt-app-secret      prompt without echo for an app secret to store
       --resumable-url string   resumable upload base URL
       --token string           access token; omit to read it without echo
       --version string         Graph API version

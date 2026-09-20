@@ -19,8 +19,8 @@ metactl instagram publish reel [flags]
       --cover-url string         public cover image URL
       --first-comment string     comment to create after publishing
   -h, --help                     help for reel
-      --poll-attempts int        maximum status checks (default 60)
-      --poll-interval duration   container status poll interval (default 2s)
+      --poll-attempts int        maximum status checks (default 5)
+      --poll-interval duration   container status poll interval (default 1m0s)
       --share-to-feed            also show the reel in the feed (default true)
       --thumb-offset int         thumbnail frame offset in milliseconds
       --video string             local path or public video URL

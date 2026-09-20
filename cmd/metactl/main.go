@@ -13,15 +13,17 @@ import (
 func main() {
 	ctx, stop := signal.NotifyContext(context.TODO(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	args, err := commands.ExpandAliases(os.Args[1:], "")
+	dependencies := commands.Dependencies{}
+	originalArgs := os.Args[1:]
+	args, err := commands.ExpandAliases(originalArgs, "")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fmt.Fprintln(os.Stderr, "error:", commands.SanitizeError(err, originalArgs, dependencies))
 		os.Exit(1)
 	}
-	root := commands.NewRootCmd(commands.Dependencies{})
+	root := commands.NewRootCmd(dependencies)
 	root.SetArgs(args)
 	if err := root.ExecuteContext(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "error:", commands.SanitizeError(err, args, dependencies))
+		os.Exit(commands.ExitCode(err))
 	}
 }

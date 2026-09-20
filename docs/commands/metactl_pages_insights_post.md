@@ -10,7 +10,7 @@ metactl pages insights post POST_ID [flags]
 
 ```
   -h, --help             help for post
-      --metrics string   comma-separated metrics (default "post_impressions,post_engaged_users")
+      --metrics string   comma-separated metrics supported by the configured Graph version
 ```
 
 ### Options inherited from parent commands

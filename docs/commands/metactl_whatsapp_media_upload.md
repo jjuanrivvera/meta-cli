@@ -9,7 +9,7 @@ metactl whatsapp media upload [flags]
 ### Options
 
 ```
-      --content-type string   media MIME type (default "application/octet-stream")
+      --content-type string   media MIME type; inferred from the file when omitted
       --file string           local media file
   -h, --help                  help for upload
 ```

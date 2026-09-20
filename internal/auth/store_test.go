@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/go-keyring"
 )
 
 func TestEncryptedFileStoreRoundTrip(t *testing.T) {
@@ -40,12 +41,18 @@ func TestEncryptedFileStoreErrors(t *testing.T) {
 	_, err := NewFileStore(path, "password").Get("work")
 	assert.Error(t, err)
 	assert.False(t, errors.Is(err, ErrNotFound))
+	assert.Error(t, NewFileStore(path, "password").Set("work", Credential{Token: "x"}))
+	assert.Error(t, NewFileStore(path, "password").Delete("work"))
 }
 
 func TestEncryptRejectsWrongPassword(t *testing.T) {
 	raw, err := encrypt([]byte("secret"), "one")
 	require.NoError(t, err)
 	_, err = decrypt(raw, "two")
+	assert.Error(t, err)
+	_, err = decrypt([]byte("short"), "one")
+	assert.Error(t, err)
+	_, err = decrypt(append([]byte("MCTL1"), make([]byte, 16)...), "one")
 	assert.Error(t, err)
 }
 
@@ -66,4 +73,39 @@ func TestStoreSelectionAndHelpers(t *testing.T) {
 	missing := NewFileStore(filepath.Join(t.TempDir(), "credentials.enc"), "password")
 	_, err := missing.Get("missing")
 	assert.ErrorIs(t, err, ErrNotFound)
+	assert.ErrorIs(t, missing.Delete("missing"), ErrNotFound)
+}
+
+func TestOSKeyringBranches(t *testing.T) {
+	originalGet, originalSet, originalDelete := keyringGet, keyringSet, keyringDelete
+	t.Cleanup(func() { keyringGet, keyringSet, keyringDelete = originalGet, originalSet, originalDelete })
+	store := keyringStore{}
+
+	keyringGet = func(_, _ string) (string, error) { return `{"token":"value"}`, nil }
+	credential, err := store.Get("work")
+	require.NoError(t, err)
+	assert.Equal(t, "value", credential.Token)
+	keyringGet = func(_, _ string) (string, error) { return "", keyring.ErrNotFound }
+	_, err = store.Get("work")
+	assert.ErrorIs(t, err, ErrNotFound)
+	keyringGet = func(_, _ string) (string, error) { return "", errors.New("backend") }
+	_, err = store.Get("work")
+	assert.ErrorContains(t, err, "read OS keyring")
+	keyringGet = func(_, _ string) (string, error) { return "invalid", nil }
+	_, err = store.Get("work")
+	assert.ErrorContains(t, err, "decode credential")
+
+	var stored string
+	keyringSet = func(_, _, value string) error { stored = value; return nil }
+	require.NoError(t, store.Set("work", Credential{Token: "value"}))
+	assert.Contains(t, stored, "value")
+	keyringSet = func(_, _, _ string) error { return errors.New("backend") }
+	assert.ErrorContains(t, store.Set("work", Credential{}), "write OS keyring")
+
+	keyringDelete = func(_, _ string) error { return keyring.ErrNotFound }
+	assert.ErrorIs(t, store.Delete("work"), ErrNotFound)
+	keyringDelete = func(_, _ string) error { return errors.New("backend") }
+	assert.EqualError(t, store.Delete("work"), "backend")
+	keyringDelete = func(_, _ string) error { return nil }
+	require.NoError(t, store.Delete("work"))
 }

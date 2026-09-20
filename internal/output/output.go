@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ type Options struct {
 	NoColor  bool
 	Writer   io.Writer
 	Warnings io.Writer
+	Secrets  []string
 }
 
 type Renderer struct{ options Options }
@@ -57,11 +59,16 @@ func (renderer *Renderer) Render(value any) error {
 	if err != nil {
 		return err
 	}
+	secrets := append([]string(nil), renderer.options.Secrets...)
+	secrets = append(secrets, collectSensitiveValues(normalized)...)
+	renderer.options.Secrets = secrets
+	normalized = redact(normalized, secrets)
 	if renderer.options.JQ != "" {
 		normalized, err = applyJQ(renderer.options.JQ, normalized)
 		if err != nil {
 			return err
 		}
+		normalized = redact(normalized, secrets)
 	}
 	rows := rowsFrom(normalized)
 	rows = filterRows(rows, renderer.options.Filter)
@@ -89,14 +96,117 @@ func (renderer *Renderer) Render(value any) error {
 	}
 }
 
+func collectSensitiveValues(value any) []string {
+	var secrets []string
+	var collectStrings func(any)
+	collectStrings = func(current any) {
+		switch typed := current.(type) {
+		case string:
+			if typed != "" {
+				secrets = append(secrets, typed)
+			}
+		case []any:
+			for _, item := range typed {
+				collectStrings(item)
+			}
+		case map[string]any:
+			for _, item := range typed {
+				collectStrings(item)
+			}
+		}
+	}
+	var walk func(any)
+	walk = func(current any) {
+		switch typed := current.(type) {
+		case map[string]any:
+			for key, child := range typed {
+				if sensitiveName(key) {
+					collectStrings(child)
+				}
+				walk(child)
+			}
+		case []any:
+			for _, child := range typed {
+				walk(child)
+			}
+		}
+	}
+	walk(value)
+	return secrets
+}
+
+func redact(value any, secrets []string) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			redactedKey := redactString(key, secrets)
+			if sensitiveName(key) {
+				child = "<redacted>"
+			} else {
+				child = redact(child, secrets)
+			}
+			if redactedKey != key {
+				delete(typed, key)
+			}
+			typed[redactedKey] = child
+		}
+	case []any:
+		for index, child := range typed {
+			typed[index] = redact(child, secrets)
+		}
+	case string:
+		return redactString(typed, secrets)
+	}
+	return value
+}
+
+func redactString(value string, secrets []string) string {
+	for _, secret := range secrets {
+		if secret != "" {
+			value = strings.ReplaceAll(value, secret, "<redacted>")
+		}
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return value
+	}
+	parsed.Path = redactKnownValue(parsed.Path, secrets)
+	parsed.RawPath = ""
+	query := parsed.Query()
+	for key := range query {
+		if sensitiveName(key) {
+			query.Set(key, "<redacted>")
+		}
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
+func redactKnownValue(value string, secrets []string) string {
+	for _, secret := range secrets {
+		if secret != "" {
+			value = strings.ReplaceAll(value, secret, "<redacted>")
+		}
+	}
+	return value
+}
+
+func sensitiveName(name string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(name, "-", "_"))
+	return normalized == "token" || strings.HasSuffix(normalized, "_token") || strings.Contains(normalized, "secret") ||
+		strings.Contains(normalized, "password") || strings.Contains(normalized, "authorization") ||
+		strings.Contains(normalized, "proof")
+}
+
 func (renderer *Renderer) table(rows []map[string]any) error {
 	if len(rows) == 0 {
 		return nil
 	}
 	columns := renderer.columns(rows)
+	displayColumns := renderer.displayColumns(columns)
 	widths := make([]int, len(columns))
-	for index, column := range columns {
-		widths[index] = utf8.RuneCountInString(strings.ToUpper(column))
+	for index := range columns {
+		widths[index] = utf8.RuneCountInString(strings.ToUpper(displayColumns[index]))
 	}
 	data := make([][]string, len(rows))
 	truncated := false
@@ -115,7 +225,7 @@ func (renderer *Renderer) table(rows []map[string]any) error {
 			}
 		}
 	}
-	printRow(renderer.options.Writer, uppercase(columns), widths)
+	printRow(renderer.options.Writer, uppercase(displayColumns), widths)
 	for _, row := range data {
 		printRow(renderer.options.Writer, row, widths)
 	}
@@ -128,7 +238,7 @@ func (renderer *Renderer) table(rows []map[string]any) error {
 func (renderer *Renderer) csv(rows []map[string]any) error {
 	writer := csv.NewWriter(renderer.options.Writer)
 	columns := renderer.columns(rows)
-	if err := writer.Write(columns); err != nil {
+	if err := writer.Write(renderer.displayColumns(columns)); err != nil {
 		return err
 	}
 	for _, row := range rows {
@@ -143,6 +253,14 @@ func (renderer *Renderer) csv(rows []map[string]any) error {
 	}
 	writer.Flush()
 	return writer.Error()
+}
+
+func (renderer *Renderer) displayColumns(columns []string) []string {
+	display := make([]string, len(columns))
+	for index, column := range columns {
+		display[index] = redactString(column, renderer.options.Secrets)
+	}
+	return display
 }
 
 func (renderer *Renderer) columns(rows []map[string]any) []string {

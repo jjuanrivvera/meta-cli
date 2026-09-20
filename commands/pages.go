@@ -1,16 +1,13 @@
 package commands
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"mime/multipart"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -37,7 +34,7 @@ func pageAccounts(options *globalOptions) *cobra.Command {
 		Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, _ config.Account, _ []string) (any, error) {
 			all, limit, after, fields := listValues(command)
 			if fields == "" {
-				fields = "id,name,category,tasks,access_token"
+				fields = "id,name,category,tasks"
 			}
 			query := url.Values{"fields": {fields}}
 			if after != "" {
@@ -197,58 +194,63 @@ func pageVideos(options *globalOptions) *cobra.Command {
 		}
 		return client.Write(command.Context(), pageID+"/videos", query, nil)
 	}}
-	var thumbnailURL string
+	var thumbnailFile, thumbnailType string
 	var preferred bool
 	thumbnail := operationSpec{Use: "thumbnail VIDEO_ID", Short: "Set the preferred video thumbnail", Kind: kindWrite, Args: cobra.ExactArgs(1), Flags: func(command *cobra.Command) {
-		command.Flags().StringVar(&thumbnailURL, "url", "", "public thumbnail URL")
+		command.Flags().StringVar(&thumbnailFile, "file", "", "local thumbnail image file")
+		command.Flags().StringVar(&thumbnailType, "content-type", "", "image MIME type; inferred from the file when omitted")
 		command.Flags().BoolVar(&preferred, "preferred", true, "make this the preferred thumbnail")
-		_ = command.MarkFlagRequired("url")
+		_ = command.MarkFlagRequired("file")
 	}, Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, _ config.Account, args []string) (any, error) {
-		body, _ := json.Marshal(map[string]any{"source": thumbnailURL, "is_preferred": preferred})
-		return client.Write(command.Context(), args[0]+"/thumbnails", nil, body)
+		return setPageVideoThumbnail(command, client, args[0], thumbnailFile, thumbnailType, preferred)
 	}}
-	var publishFile, publishTitle, publishDescription, publishThumbnail string
+	var publishFile, publishTitle, publishDescription, publishThumbnail, publishThumbnailType string
 	var publishScheduled int64
-	publish := operationSpec{Use: "publish", Short: "Upload and publish a Page video in one workflow", Kind: kindWrite, Example: "  metactl pages videos publish --file ./video.mp4 --title 'Launch' --thumbnail-url https://cdn.example/thumb.jpg", Flags: func(command *cobra.Command) {
+	publish := operationSpec{Use: "publish", Short: "Upload and publish a Page video in one workflow", Kind: kindWrite, Example: "  metactl pages videos publish --file ./video.mp4 --title 'Launch' --thumbnail-file ./thumb.jpg", Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&publishFile, "file", "", "local video file")
 		command.Flags().StringVar(&publishTitle, "title", "", "video title")
 		command.Flags().StringVar(&publishDescription, "description", "", "video description")
-		command.Flags().StringVar(&publishThumbnail, "thumbnail-url", "", "public thumbnail URL")
+		command.Flags().StringVar(&publishThumbnail, "thumbnail-file", "", "local thumbnail image file")
+		command.Flags().StringVar(&publishThumbnailType, "thumbnail-content-type", "", "thumbnail MIME type; inferred when omitted")
 		command.Flags().Int64Var(&publishScheduled, "scheduled-at", 0, "Unix timestamp for scheduled publishing")
 		_ = command.MarkFlagRequired("file")
 	}, Run: func(command *cobra.Command, current *globalOptions, client *api.Client, account config.Account, _ []string) (any, error) {
-		return publishPageVideo(command, current, client, account, publishFile, publishTitle, publishDescription, publishThumbnail, publishScheduled)
+		return publishPageVideo(command, current, client, account, publishFile, publishTitle, publishDescription, publishThumbnail, publishThumbnailType, publishScheduled)
 	}}
 	return newGroup("videos", "Manage resumable Page video uploads", []string{"video"}, options, start, upload, status, finish, thumbnail, publish)
 }
 
 func uploadPageVideoChunk(command *cobra.Command, client *api.Client, pageID, sessionID, offset, filePath string) (any, error) {
-	data, err := os.ReadFile(filePath) // #nosec G304 -- the user explicitly selected this upload file
+	start, err := strconv.ParseInt(offset, 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("read video chunk: %w", err)
+		return nil, fmt.Errorf("invalid start offset %q", offset)
 	}
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	part, err := writer.CreateFormFile("video_file_chunk", filepath.Base(filePath))
+	info, err := uploadFileInfo(command.Context(), filePath)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := part.Write(data); err != nil {
-		return nil, err
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-	query := url.Values{"upload_phase": {"transfer"}, "upload_session_id": {sessionID}, "start_offset": {offset}}
-	return uploadResponse(command, client, api.Request{Method: http.MethodPost, Path: pageID + "/videos", Query: query, Body: body.Bytes(), Headers: http.Header{"Content-Type": {writer.FormDataContentType()}}, Idempotent: true})
+	return uploadPageVideoRange(command, client, pageID, sessionID, start, filePath, 0, info.Size())
 }
 
-func publishPageVideo(command *cobra.Command, options *globalOptions, client *api.Client, account config.Account, filePath, title, description, thumbnailURL string, scheduledAt int64) (any, error) {
+func uploadPageVideoRange(command *cobra.Command, client *api.Client, pageID, sessionID string, start int64, filePath string, sourceOffset, length int64) (any, error) {
+	bodyFactory, contentType, err := multipartFileBody(command.Context(), filePath, "video_file_chunk", "application/octet-stream", nil, sourceOffset, length)
+	if err != nil {
+		return nil, err
+	}
+	query := url.Values{"upload_phase": {"transfer"}, "upload_session_id": {sessionID}, "start_offset": {strconv.FormatInt(start, 10)}}
+	return uploadResponse(command, client, api.Request{
+		Method: http.MethodPost, Path: pageID + "/videos", Query: query,
+		BodyFactory: bodyFactory, MultipartForm: multipartDryRun(filePath, "video_file_chunk", "application/octet-stream", nil, sourceOffset, length),
+		Headers: http.Header{"Content-Type": {contentType}}, Idempotent: true, LongRunning: true,
+	})
+}
+
+func publishPageVideo(command *cobra.Command, options *globalOptions, client *api.Client, account config.Account, filePath, title, description, thumbnailFile, thumbnailType string, scheduledAt int64) (any, error) {
 	pageID, err := requireID(account.PageID, "page-id")
 	if err != nil {
 		return nil, err
 	}
-	info, err := os.Stat(filePath)
+	info, err := uploadFileInfo(command.Context(), filePath)
 	if err != nil {
 		return nil, fmt.Errorf("stat video: %w", err)
 	}
@@ -268,8 +270,35 @@ func publishPageVideo(command *cobra.Command, options *globalOptions, client *ap
 	if sessionID == "" || videoID == "" {
 		return nil, fmt.Errorf("upload start response omitted session or video id")
 	}
-	if _, err := uploadPageVideoChunk(command, client, pageID, sessionID, "0", filePath); err != nil {
-		return nil, err
+	startOffset := integerValueField(started, "start_offset")
+	endOffset := integerValueField(started, "end_offset")
+	if options.dryRun {
+		startOffset, endOffset = 0, info.Size()
+	}
+	if startOffset < 0 || startOffset > info.Size() {
+		return nil, fmt.Errorf("invalid upload start offset %d for file size %d", startOffset, info.Size())
+	}
+	for startOffset < info.Size() {
+		if endOffset <= startOffset || endOffset > info.Size() {
+			return nil, fmt.Errorf("invalid upload offsets %d..%d for file size %d", startOffset, endOffset, info.Size())
+		}
+		transferred, err := uploadPageVideoRange(command, client, pageID, sessionID, startOffset, filePath, startOffset, endOffset-startOffset)
+		if err != nil {
+			return nil, err
+		}
+		if options.dryRun {
+			startOffset = endOffset
+			continue
+		}
+		nextStart := integerValueField(transferred, "start_offset")
+		nextEnd := integerValueField(transferred, "end_offset")
+		if nextStart <= startOffset {
+			return nil, fmt.Errorf("upload transfer did not advance beyond offset %d", startOffset)
+		}
+		if nextStart > info.Size() || nextEnd < nextStart || nextEnd > info.Size() {
+			return nil, fmt.Errorf("invalid upload offsets %d..%d for file size %d", nextStart, nextEnd, info.Size())
+		}
+		startOffset, endOffset = nextStart, nextEnd
 	}
 	query := url.Values{"upload_phase": {"finish"}, "upload_session_id": {sessionID}, "title": {title}, "description": {description}}
 	if scheduledAt > 0 {
@@ -280,13 +309,35 @@ func publishPageVideo(command *cobra.Command, options *globalOptions, client *ap
 	if err != nil {
 		return nil, err
 	}
-	if thumbnailURL != "" {
-		body, _ := json.Marshal(map[string]any{"source": thumbnailURL, "is_preferred": true})
-		if _, err := client.Write(command.Context(), videoID+"/thumbnails", nil, body); err != nil {
-			return nil, err
+	if thumbnailFile != "" {
+		if _, err := setPageVideoThumbnail(command, client, videoID, thumbnailFile, thumbnailType, true); err != nil {
+			result := map[string]any{"id": videoID, "published": finished, "thumbnail_status": "failed", "thumbnail_error": err.Error()}
+			fmt.Fprintf(command.ErrOrStderr(), "warning: video %s was published, but its thumbnail upload failed\n", videoID)
+			return result, &partialFailureError{message: fmt.Sprintf("video %s was published but the thumbnail upload failed: %v", videoID, err)}
 		}
 	}
 	return finished, nil
+}
+
+func setPageVideoThumbnail(command *cobra.Command, client *api.Client, videoID, filePath, contentType string, preferred bool) (any, error) {
+	bodyFactory, multipartType, err := multipartFileBody(command.Context(), filePath, "source", contentType, map[string]string{"is_preferred": strconv.FormatBool(preferred)}, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	return uploadResponse(command, client, api.Request{
+		Method: http.MethodPost, Path: videoID + "/thumbnails", BodyFactory: bodyFactory,
+		MultipartForm: multipartDryRun(filePath, "source", contentType, map[string]string{"is_preferred": strconv.FormatBool(preferred)}, 0, 0),
+		Headers:       http.Header{"Content-Type": {multipartType}},
+		Idempotent:    true, LongRunning: true,
+	})
+}
+
+func integerValueField(value any, name string) int64 {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return 0
+	}
+	return integerValue(object[name])
 }
 
 func pageReels(options *globalOptions) *cobra.Command {
@@ -308,30 +359,38 @@ func pageReels(options *globalOptions) *cobra.Command {
 	status := operationSpec{Use: "status VIDEO_ID", Short: "Get Page reel processing status", Kind: kindRead, Args: cobra.ExactArgs(1), Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, _ config.Account, args []string) (any, error) {
 		return client.Read(command.Context(), args[0], url.Values{"fields": {"id,status"}})
 	}}
-	var finishVideo, description string
-	var thumbOffset int
+	var finishVideo, description, finishTitle string
+	var finishScheduled int64
 	finish := operationSpec{Use: "finish", Short: "Publish a finished Page reel", Kind: kindWrite, Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&finishVideo, "video-id", "", "uploaded video id")
 		command.Flags().StringVar(&description, "description", "", "reel description")
-		command.Flags().IntVar(&thumbOffset, "thumb-offset", 0, "thumbnail frame offset in milliseconds")
+		command.Flags().StringVar(&finishTitle, "title", "", "reel title")
+		command.Flags().Int64Var(&finishScheduled, "scheduled-at", 0, "Unix timestamp for scheduled publishing")
 		_ = command.MarkFlagRequired("video-id")
 	}, Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, account config.Account, _ []string) (any, error) {
 		pageID, err := requireID(account.PageID, "page-id")
 		if err != nil {
 			return nil, err
 		}
-		body, _ := json.Marshal(map[string]any{"upload_phase": "finish", "video_id": finishVideo, "video_state": "PUBLISHED", "description": description, "thumb_offset": thumbOffset})
+		body := pageReelFinishBody(finishVideo, finishTitle, description, finishScheduled)
 		return client.Write(command.Context(), pageID+"/video_reels", nil, body)
 	}}
-	var publishVideo, publishDescription string
-	var publishThumb int
+	var publishVideo, publishDescription, publishTitle, publishThumbnail, publishThumbnailType string
+	var publishScheduled int64
+	var pollInterval time.Duration
+	var pollAttempts int
 	publish := operationSpec{Use: "publish", Short: "Upload and publish a Page reel in one workflow", Kind: kindWrite, Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&publishVideo, "video", "", "local path or public hosted video URL")
 		command.Flags().StringVar(&publishDescription, "description", "", "reel description")
-		command.Flags().IntVar(&publishThumb, "thumb-offset", 0, "thumbnail frame offset in milliseconds")
+		command.Flags().StringVar(&publishTitle, "title", "", "reel title")
+		command.Flags().Int64Var(&publishScheduled, "scheduled-at", 0, "Unix timestamp for scheduled publishing")
+		command.Flags().StringVar(&publishThumbnail, "thumbnail-file", "", "local custom cover image")
+		command.Flags().StringVar(&publishThumbnailType, "thumbnail-content-type", "", "thumbnail MIME type; inferred when omitted")
+		command.Flags().DurationVar(&pollInterval, "poll-interval", 5*time.Second, "processing status poll interval")
+		command.Flags().IntVar(&pollAttempts, "poll-attempts", 60, "maximum processing status checks")
 		_ = command.MarkFlagRequired("video")
 	}, Run: func(command *cobra.Command, current *globalOptions, client *api.Client, account config.Account, _ []string) (any, error) {
-		return publishPageReel(command, current, client, account, publishVideo, publishDescription, publishThumb)
+		return publishPageReel(command, current, client, account, publishVideo, publishTitle, publishDescription, publishThumbnail, publishThumbnailType, publishScheduled, pollInterval, pollAttempts)
 	}}
 	return newGroup("reels", "Manage Page reels", []string{"reel"}, options, start, upload, status, finish, publish)
 }
@@ -341,23 +400,42 @@ func uploadPageReel(command *cobra.Command, client *api.Client, videoID, filePat
 		return nil, fmt.Errorf("use exactly one of --file or --url")
 	}
 	headers := make(http.Header)
-	var body []byte
-	if filePath != "" {
-		var err error
-		body, err = os.ReadFile(filePath) // #nosec G304 -- explicit upload path
+	if hostedURL != "" {
+		headers.Set("file_url", hostedURL)
+		return uploadResponse(command, client, api.Request{Method: http.MethodPost, Path: "video-upload/" + videoID, Headers: headers, Upload: true, Idempotent: true})
+	}
+	offset := int64(0)
+	var lastErr error
+	for resume := 0; resume < 4; resume++ {
+		request, size, err := rawUploadRequest(command.Context(), "video-upload/"+videoID, filePath, offset)
 		if err != nil {
 			return nil, err
 		}
-		headers.Set("offset", "0")
-		headers.Set("file_size", strconv.Itoa(len(body)))
-		headers.Set("Content-Type", "application/octet-stream")
-	} else {
-		headers.Set("file_url", hostedURL)
+		response, err := client.Do(command.Context(), request)
+		if err == nil {
+			return decodeResponse(response)
+		}
+		lastErr = err
+		status, statusErr := client.Read(command.Context(), videoID, url.Values{"fields": {"id,status"}})
+		if statusErr != nil {
+			return nil, fmt.Errorf("upload failed: %w; query resume offset: %w", err, statusErr)
+		}
+		next := uploadOffset(status)
+		if next > size {
+			return nil, fmt.Errorf("graph reported upload offset %d beyond file size %d", next, size)
+		}
+		if next == size {
+			return map[string]any{"success": true, "bytes_transferred": next, "resumed": true}, nil
+		}
+		if next <= offset {
+			return nil, err
+		}
+		offset = next
 	}
-	return uploadResponse(command, client, api.Request{Method: http.MethodPost, Path: "video-upload/" + videoID, Headers: headers, Body: body, Upload: true, Idempotent: true})
+	return nil, fmt.Errorf("resumable upload did not complete: %w", lastErr)
 }
 
-func publishPageReel(command *cobra.Command, options *globalOptions, client *api.Client, account config.Account, video, description string, thumbOffset int) (any, error) {
+func publishPageReel(command *cobra.Command, options *globalOptions, client *api.Client, account config.Account, video, title, description, thumbnailFile, thumbnailType string, scheduledAt int64, pollInterval time.Duration, pollAttempts int) (any, error) {
 	pageID, err := requireID(account.PageID, "page-id")
 	if err != nil {
 		return nil, err
@@ -381,8 +459,76 @@ func publishPageReel(command *cobra.Command, options *globalOptions, client *api
 	if err != nil {
 		return nil, err
 	}
-	body, _ := json.Marshal(map[string]any{"upload_phase": "finish", "video_id": videoID, "video_state": "PUBLISHED", "description": description, "thumb_offset": thumbOffset})
-	return client.Write(command.Context(), pageID+"/video_reels", nil, body)
+	finished, err := client.Write(command.Context(), pageID+"/video_reels", nil, pageReelFinishBody(videoID, title, description, scheduledAt))
+	if err != nil {
+		return nil, err
+	}
+	if !options.dryRun {
+		if _, err := waitForPageReel(command, client, videoID, pollInterval, pollAttempts); err != nil {
+			return map[string]any{"id": videoID, "published": finished, "processing_status": "failed", "processing_error": err.Error()}, &partialFailureError{message: fmt.Sprintf("reel %s was published but processing did not complete: %v", videoID, err)}
+		}
+	}
+	if thumbnailFile != "" {
+		if _, err := setPageVideoThumbnail(command, client, videoID, thumbnailFile, thumbnailType, true); err != nil {
+			return map[string]any{"id": videoID, "published": finished, "thumbnail_status": "failed", "thumbnail_error": err.Error()}, &partialFailureError{message: fmt.Sprintf("reel %s was published but the thumbnail upload failed: %v", videoID, err)}
+		}
+	}
+	return finished, nil
+}
+
+func pageReelFinishBody(videoID, title, description string, scheduledAt int64) []byte {
+	value := map[string]any{"upload_phase": "finish", "video_id": videoID, "video_state": "PUBLISHED", "description": description, "title": title}
+	if scheduledAt > 0 {
+		value["video_state"] = "SCHEDULED"
+		value["scheduled_publish_time"] = scheduledAt
+	}
+	body, _ := json.Marshal(value)
+	return body
+}
+
+func waitForPageReel(command *cobra.Command, client *api.Client, videoID string, interval time.Duration, attempts int) (any, error) {
+	for attempt := 0; attempt < attempts; attempt++ {
+		status, err := client.Read(command.Context(), videoID, url.Values{"fields": {"id,status"}})
+		if err != nil {
+			return nil, err
+		}
+		state := strings.ToLower(statusState(status))
+		switch state {
+		case "complete", "completed", "ready", "published":
+			return status, nil
+		case "error", "failed", "expired":
+			return nil, fmt.Errorf("reel %s entered %s processing status", videoID, state)
+		}
+		select {
+		case <-command.Context().Done():
+			return nil, command.Context().Err()
+		case <-time.After(interval):
+		}
+	}
+	return nil, fmt.Errorf("reel %s processing did not complete after %d checks", videoID, attempts)
+}
+
+func statusState(value any) string {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return ""
+	}
+	for _, key := range []string{"video_status", "status"} {
+		if text, ok := object[key].(string); ok {
+			return text
+		}
+		if nested, ok := object[key].(map[string]any); ok {
+			for _, phase := range []string{"processing_phase", "uploading_phase"} {
+				if state := statusState(nested[phase]); state != "" {
+					return state
+				}
+			}
+			if state, ok := nested["status"].(string); ok {
+				return state
+			}
+		}
+	}
+	return ""
 }
 
 func pageComments(options *globalOptions) *cobra.Command {
@@ -421,8 +567,9 @@ func pageComments(options *globalOptions) *cobra.Command {
 func pageInsights(options *globalOptions) *cobra.Command {
 	var pageMetrics, postMetrics, period string
 	page := operationSpec{Use: "page", Short: "Get Page insights", Kind: kindRead, Flags: func(command *cobra.Command) {
-		command.Flags().StringVar(&pageMetrics, "metrics", "page_views_total,page_post_engagements", "comma-separated metrics")
+		command.Flags().StringVar(&pageMetrics, "metrics", "", "comma-separated metrics supported by the configured Graph version")
 		command.Flags().StringVar(&period, "period", "day", "metric period")
+		_ = command.MarkFlagRequired("metrics")
 	}, Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, account config.Account, _ []string) (any, error) {
 		pageID, err := requireID(account.PageID, "page-id")
 		if err != nil {
@@ -431,7 +578,8 @@ func pageInsights(options *globalOptions) *cobra.Command {
 		return client.Read(command.Context(), pageID+"/insights", url.Values{"metric": {pageMetrics}, "period": {period}})
 	}}
 	post := operationSpec{Use: "post POST_ID", Short: "Get Page post insights", Kind: kindRead, Args: cobra.ExactArgs(1), Flags: func(command *cobra.Command) {
-		command.Flags().StringVar(&postMetrics, "metrics", "post_impressions,post_engaged_users", "comma-separated metrics")
+		command.Flags().StringVar(&postMetrics, "metrics", "", "comma-separated metrics supported by the configured Graph version")
+		_ = command.MarkFlagRequired("metrics")
 	}, Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, _ config.Account, args []string) (any, error) {
 		return client.Read(command.Context(), args[0]+"/insights", url.Values{"metric": {postMetrics}})
 	}}

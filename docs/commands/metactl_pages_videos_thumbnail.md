@@ -9,9 +9,10 @@ metactl pages videos thumbnail VIDEO_ID [flags]
 ### Options
 
 ```
-  -h, --help         help for thumbnail
-      --preferred    make this the preferred thumbnail (default true)
-      --url string   public thumbnail URL
+      --content-type string   image MIME type; inferred from the file when omitted
+      --file string           local thumbnail image file
+  -h, --help                  help for thumbnail
+      --preferred             make this the preferred thumbnail (default true)
 ```
 
 ### Options inherited from parent commands

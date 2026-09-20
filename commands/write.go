@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -40,8 +39,15 @@ func (options *writeOptions) body(command *cobra.Command, defaults map[string]an
 			return nil, err
 		}
 	} else if options.file != "" {
-		var err error
-		raw, err = os.ReadFile(options.file) // #nosec G304 -- the user explicitly selected this input path
+		file, err := openUploadFile(command.Context(), options.file)
+		if err != nil {
+			return nil, fmt.Errorf("read --file: %w", err)
+		}
+		raw, err = io.ReadAll(file)
+		closeErr := file.Close()
+		if err == nil {
+			err = closeErr
+		}
 		if err != nil {
 			return nil, fmt.Errorf("read --file: %w", err)
 		}

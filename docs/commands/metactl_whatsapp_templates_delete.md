@@ -1,6 +1,6 @@
 ## metactl whatsapp templates delete
 
-Delete a message template by name
+Delete one template translation by id, or all translations by name
 
 ```
 metactl whatsapp templates delete [flags]
@@ -10,6 +10,7 @@ metactl whatsapp templates delete [flags]
 
 ```
   -h, --help          help for delete
+      --id string     template id (hsm_id) to delete only one language
       --name string   template name
   -y, --yes           skip the confirmation prompt
 ```

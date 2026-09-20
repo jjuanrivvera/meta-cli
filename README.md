@@ -50,12 +50,16 @@ metactl config set work \
   --waba-id 100000000000000 \
   --phone-id 100000000000001
 metactl auth login --account work
+metactl auth pages --account work --page-id 123456789 --save
 metactl doctor --account work
 ```
 
 Credentials go to the operating-system keyring. On a headless system, an encrypted file backend
 can be selected explicitly with `METACTL_KEYRING_BACKEND=file` and a password supplied through
 `METACTL_KEYRING_PASSWORD`; plaintext credentials are never written to configuration.
+The `auth pages --save` step derives and stores the Page access token that every `pages` command
+uses. Set `METACTL_APP_SECRET` for one invocation or use `auth login --prompt-app-secret` when
+`appsecret_proof` is required; app secrets are never accepted as command-line values.
 
 Explore and publish:
 
@@ -63,14 +67,18 @@ Explore and publish:
 metactl instagram media list --account work --all -o table
 metactl instagram publish reel --account work --video ./launch.mp4 \
   --cover-url https://cdn.example/cover.jpg --first-comment "Details in bio" --dry-run
+SCHEDULED_AT=$(date -u -v+1H +%s 2>/dev/null || date -u -d '+1 hour' +%s)
 metactl pages posts create --account work --message "Coming soon" \
-  --published=false --scheduled-at 1789900000 --dry-run
+  --published=false --scheduled-at "$SCHEDULED_AT" --dry-run
 metactl whatsapp templates list --account work -o json
 ```
 
 All API operations support deterministic `table`, `json`, `yaml`, `csv`, and `id` output. Use
 `--columns`, `--filter`, `--sort`, `--jq`, `--all`, and `--limit` to shape results. A dry run emits
 copy-pasteable `curl` commands with credentials redacted.
+
+MCP upload tools confine file reads to `METACTL_MCP_ROOT`; when it is unset, the MCP server's
+working directory is the root. Symlinks that resolve outside that root are rejected.
 
 ## Development
 

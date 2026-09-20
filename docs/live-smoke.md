@@ -20,7 +20,12 @@ metactl auth login --account "$METACTL_ACCOUNT"
 ```
 
 Enter the token at the hidden prompt. If `appsecret_proof` is required, repeat the login with
-`--app-secret` and enter only disposable test credentials.
+`--prompt-app-secret`, or set `METACTL_APP_SECRET` for that invocation, and enter only disposable
+test credentials. Derive the Page credential before running any `pages` command:
+
+```sh
+metactl auth pages --account "$METACTL_ACCOUNT" --page-id 123456789 --save
+```
 
 ## Read-only checks
 
@@ -39,9 +44,10 @@ metactl whatsapp templates list --account "$METACTL_ACCOUNT" --limit 2 -o json
 Use a future Unix timestamp accepted by the API:
 
 ```sh
+SCHEDULED_AT=$(date -u -v+1H +%s 2>/dev/null || date -u -d '+1 hour' +%s)
 metactl pages posts create --account "$METACTL_ACCOUNT" \
   --message "metactl disposable smoke post" --published=false \
-  --scheduled-at 1789900000 --dry-run
+  --scheduled-at "$SCHEDULED_AT" --dry-run
 metactl instagram publish reel --account "$METACTL_ACCOUNT" \
   --video ./disposable-smoke.mp4 --caption "metactl disposable smoke reel" \
   --cover-url https://cdn.example/disposable-smoke-cover.jpg \
@@ -59,8 +65,9 @@ metactl pages posts get DISPOSABLE_POST_ID --account "$METACTL_ACCOUNT" -o json
 metactl pages posts delete DISPOSABLE_POST_ID --account "$METACTL_ACCOUNT"
 metactl instagram media get DISPOSABLE_MEDIA_ID --account "$METACTL_ACCOUNT" -o json
 metactl instagram comments delete DISPOSABLE_COMMENT_ID --account "$METACTL_ACCOUNT"
-metactl whatsapp templates get DISPOSABLE_TEMPLATE_NAME --account "$METACTL_ACCOUNT" -o json
-metactl whatsapp templates delete DISPOSABLE_TEMPLATE_NAME --account "$METACTL_ACCOUNT"
+metactl whatsapp templates get DISPOSABLE_TEMPLATE_ID --account "$METACTL_ACCOUNT" -o json
+metactl whatsapp templates delete --name DISPOSABLE_TEMPLATE_NAME \
+  --id DISPOSABLE_TEMPLATE_ID --account "$METACTL_ACCOUNT"
 ```
 
 Do not delete pre-existing content. Finish by removing the local credential:

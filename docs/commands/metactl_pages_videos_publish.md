@@ -9,18 +9,19 @@ metactl pages videos publish [flags]
 ### Examples
 
 ```
-  metactl pages videos publish --file ./video.mp4 --title 'Launch' --thumbnail-url https://cdn.example/thumb.jpg
+  metactl pages videos publish --file ./video.mp4 --title 'Launch' --thumbnail-file ./thumb.jpg
 ```
 
 ### Options
 
 ```
-      --description string     video description
-      --file string            local video file
-  -h, --help                   help for publish
-      --scheduled-at int       Unix timestamp for scheduled publishing
-      --thumbnail-url string   public thumbnail URL
-      --title string           video title
+      --description string              video description
+      --file string                     local video file
+  -h, --help                            help for publish
+      --scheduled-at int                Unix timestamp for scheduled publishing
+      --thumbnail-content-type string   thumbnail MIME type; inferred when omitted
+      --thumbnail-file string           local thumbnail image file
+      --title string                    video title
 ```
 
 ### Options inherited from parent commands

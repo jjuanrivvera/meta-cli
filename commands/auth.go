@@ -1,11 +1,11 @@
 package commands
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -29,7 +29,8 @@ func newAuthCmd(options *globalOptions) *cobra.Command {
 }
 
 func newAuthLoginCmd(options *globalOptions) *cobra.Command {
-	var token, appSecret string
+	var token string
+	var promptAppSecret bool
 	command := &cobra.Command{
 		Use:   "login",
 		Short: "Verify and store an access token",
@@ -49,7 +50,19 @@ func newAuthLoginCmd(options *globalOptions) *cobra.Command {
 			if token == "" {
 				return fmt.Errorf("access token is required")
 			}
-			client, err := api.New(api.Options{BaseURL: account.BaseURL, UploadURL: account.UploadURL, Version: account.GraphVersion, Token: token, AppSecret: appSecret, DryRun: options.dryRun, ShowToken: options.showToken, Writer: options.deps.Out, HTTPClient: options.deps.HTTPClient})
+			appSecret := os.Getenv("METACTL_APP_SECRET")
+			if promptAppSecret && appSecret == "" {
+				appSecret, err = promptSecret(command, "App secret: ")
+				if err != nil {
+					return fmt.Errorf("read app secret: %w", err)
+				}
+			}
+			credential, _ := options.deps.Store.Get(name)
+			options.redactions = []string{
+				token, credential.Token, credential.PageToken, appSecret, credential.AppSecret,
+				os.Getenv("METACTL_TOKEN"), os.Getenv("METACTL_PAGE_TOKEN"), os.Getenv("METACTL_APP_SECRET"),
+			}
+			client, err := api.New(api.Options{BaseURL: account.BaseURL, UploadURL: account.UploadURL, Version: account.GraphVersion, Token: token, AppSecret: appSecret, DryRun: options.dryRun, ShowToken: options.showToken, Redactions: options.redactions, Writer: options.deps.Err, Diagnostics: options.deps.Err, Verbose: options.verbose, HTTPClient: options.deps.HTTPClient})
 			if err != nil {
 				return err
 			}
@@ -60,7 +73,11 @@ func newAuthLoginCmd(options *globalOptions) *cobra.Command {
 			if options.dryRun {
 				return nil
 			}
-			if err := options.deps.Store.Set(name, auth.Credential{Token: token, AppSecret: appSecret}); err != nil {
+			credential.Token = token
+			if appSecret != "" {
+				credential.AppSecret = appSecret
+			}
+			if err := options.deps.Store.Set(name, credential); err != nil {
 				return err
 			}
 			value, err := config.Load(options.deps.ConfigPath)
@@ -80,7 +97,7 @@ func newAuthLoginCmd(options *globalOptions) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&token, "token", "", "access token; omit to read it without echo")
-	command.Flags().StringVar(&appSecret, "app-secret", "", "app secret for appsecret_proof; stored separately")
+	command.Flags().BoolVar(&promptAppSecret, "prompt-app-secret", false, "prompt without echo for an app secret to store")
 	annotate(command, kindWrite)
 	return command
 }
@@ -116,7 +133,9 @@ func newAuthStatusCmd(options *globalOptions) *cobra.Command {
 		identity["account"] = name
 		identity["graph_version"] = account.GraphVersion
 		identity["credential_backend"] = options.deps.Store.Backend()
-		return options.render(identity, []string{"account", "id", "name", "graph_version", "credential_backend"})
+		credential, _ := options.credentialFor(name)
+		identity["page_credential_configured"] = credential.PageToken != ""
+		return options.render(identity, []string{"account", "id", "name", "graph_version", "credential_backend", "page_credential_configured"})
 	}}
 	annotate(command, kindRead)
 	return command
@@ -132,12 +151,12 @@ func newAuthDebugCmd(options *globalOptions) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		query := url.Values{"input_token": {credential.Token}}
+		query := url.Values{"input_token": {credential.Token}, "access_token": {credential.Token}}
 		if account.AppID != "" && credential.AppSecret != "" {
 			query.Set("access_token", account.AppID+"|"+credential.AppSecret)
 		}
 		var result any
-		if err := client.JSON(command.Context(), api.Request{Method: http.MethodGet, Path: "debug_token", Query: query}, &result); err != nil {
+		if err := client.JSON(command.Context(), api.Request{Method: http.MethodGet, Path: "debug_token", Query: query, SkipAuthorization: true, SkipAppSecretProof: true}, &result); err != nil {
 			return err
 		}
 		return options.render(result, nil)
@@ -158,7 +177,7 @@ func newAuthExchangeCmd(options *globalOptions) *cobra.Command {
 			return err
 		}
 		if account.AppID == "" || credential.AppSecret == "" {
-			return fmt.Errorf("app id and app secret are required; set --app-id and run auth login with --app-secret")
+			return fmt.Errorf("app id and app secret are required; set --app-id and METACTL_APP_SECRET, or run auth login --prompt-app-secret")
 		}
 		query := url.Values{"grant_type": {"fb_exchange_token"}, "client_id": {account.AppID}, "client_secret": {credential.AppSecret}, "fb_exchange_token": {credential.Token}}
 		var result struct {
@@ -166,7 +185,7 @@ func newAuthExchangeCmd(options *globalOptions) *cobra.Command {
 			TokenType   string `json:"token_type"`
 			ExpiresIn   int    `json:"expires_in"`
 		}
-		if err := client.JSON(command.Context(), api.Request{Method: http.MethodGet, Path: "oauth/access_token", Query: query}, &result); err != nil {
+		if err := client.JSON(command.Context(), api.Request{Method: http.MethodGet, Path: "oauth/access_token", Query: query, SkipAuthorization: true, SkipAppSecretProof: true}, &result); err != nil {
 			return err
 		}
 		if save && !options.dryRun {
@@ -183,21 +202,68 @@ func newAuthExchangeCmd(options *globalOptions) *cobra.Command {
 }
 
 func newAuthPagesCmd(options *globalOptions) *cobra.Command {
+	var save bool
 	command := &cobra.Command{Use: "pages", Short: "List Pages and derived Page access tokens", Example: "  metactl auth pages -o json", RunE: func(command *cobra.Command, _ []string) error {
-		client, _, _, err := options.clientFor()
+		client, name, _, err := options.clientFor()
 		if err != nil {
 			return err
 		}
-		response, err := client.Do(command.Context(), api.Request{Method: http.MethodGet, Path: "me/accounts", Query: url.Values{"fields": {"id,name,access_token,tasks"}}})
+		items, err := client.List(command.Context(), "me/accounts", url.Values{"fields": {"id,name,access_token,tasks"}}, true, 0)
 		if err != nil {
 			return err
 		}
-		var result any
-		if err := json.Unmarshal(response.Body, &result); err != nil {
-			return err
+		var result any = items
+		for _, item := range items {
+			if page, ok := item.(map[string]any); ok {
+				if pageToken, ok := page["access_token"].(string); ok && pageToken != "" {
+					options.redactions = append(options.redactions, pageToken)
+				}
+			}
+		}
+		if save && !options.dryRun {
+			if options.pageID == "" {
+				return fmt.Errorf("--page-id is required with --save")
+			}
+			pageToken := findPageToken(result, options.pageID)
+			if pageToken == "" {
+				return fmt.Errorf("page %q was not returned by /me/accounts", options.pageID)
+			}
+			credential, getErr := options.credentialFor(name)
+			if getErr != nil {
+				return getErr
+			}
+			credential.PageToken = pageToken
+			if err := options.deps.Store.Set(name, credential); err != nil {
+				return err
+			}
+			if !options.quiet {
+				fmt.Fprintf(command.ErrOrStderr(), "Page access token stored for Page %q\n", options.pageID)
+			}
 		}
 		return options.render(result, []string{"id", "name", "tasks"})
 	}}
-	annotate(command, kindRead)
+	command.Flags().BoolVar(&save, "save", false, "store the selected Page access token for Pages operations")
+	annotate(command, kindWrite)
 	return command
+}
+
+func findPageToken(value any, pageID string) string {
+	items, ok := value.([]any)
+	if !ok {
+		object, objectOK := value.(map[string]any)
+		if !objectOK {
+			return ""
+		}
+		items, ok = object["data"].([]any)
+		if !ok {
+			return ""
+		}
+	}
+	for _, item := range items {
+		page, ok := item.(map[string]any)
+		if ok && stringField(page, "id") == pageID {
+			return stringField(page, "access_token")
+		}
+	}
+	return ""
 }

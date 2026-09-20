@@ -13,6 +13,7 @@ type APIError struct {
 	Message    string
 	Type       string
 	Details    string
+	TraceID    string
 	Body       string
 }
 
@@ -24,7 +25,11 @@ func (err *APIError) Error() string {
 	if message == "" {
 		message = "request failed"
 	}
-	return fmt.Sprintf("Graph API error (%d/%d): %s; hint: %s", err.StatusCode, err.Code, message, err.Hint())
+	trace := ""
+	if err.TraceID != "" {
+		trace = "; fbtrace_id: " + err.TraceID
+	}
+	return fmt.Sprintf("Graph API error (%d/%d): %s%s; hint: %s", err.StatusCode, err.Code, message, trace, err.Hint())
 }
 
 func (err *APIError) Hint() string {
@@ -35,7 +40,7 @@ func (err *APIError) Hint() string {
 		return "check the app review status and permissions for this account"
 	case err.StatusCode == 404:
 		return "verify the object id with the corresponding list command"
-	case err.Code == 4 || err.Code == 17 || err.Code == 32 || err.StatusCode == 429:
+	case isThrottleCode(err.Code) || err.StatusCode == 429:
 		return "rate limited; reduce request volume and retry after the indicated delay"
 	case err.StatusCode >= 500:
 		return "server error; the failure is usually transient, so retry later"
@@ -68,8 +73,14 @@ func decodeAPIError(status int, body []byte) error {
 		Message:    envelope.Error.Message,
 		Type:       envelope.Error.Type,
 		Details:    details,
+		TraceID:    envelope.Error.TraceID,
 		Body:       truncate(string(body), 4096),
 	}
+}
+
+func isThrottleCode(code int) bool {
+	return code == 4 || code == 17 || code == 32 || code == 613 ||
+		(code >= 80000 && code <= 80009) || code == 80014
 }
 
 func truncate(value string, max int) string {

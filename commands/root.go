@@ -48,6 +48,8 @@ type globalOptions struct {
 	wabaID       string
 	phoneID      string
 	appID        string
+	mcpRoot      string
+	redactions   []string
 }
 
 type registrar func(*cobra.Command, *globalOptions)
@@ -72,6 +74,11 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 		deps.Store = auth.NewStore(deps.ConfigPath)
 	}
 	options := &globalOptions{deps: deps, output: output.FormatTable}
+	safeErr := &credentialWriter{writer: deps.Err, secrets: func() []string {
+		secrets := append([]string(nil), options.redactions...)
+		return append(secrets, os.Getenv("METACTL_TOKEN"), os.Getenv("METACTL_PAGE_TOKEN"), os.Getenv("METACTL_APP_SECRET"))
+	}}
+	options.deps.Err = safeErr
 	root := &cobra.Command{
 		Use:           "metactl",
 		Short:         "Publish and manage Meta business content",
@@ -79,10 +86,14 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Example:       "  metactl pages posts list --page-id 123\n  metactl instagram publish reel --instagram-id 456 --video ./reel.mp4 --dry-run\n  metactl whatsapp send text --phone-id 789 --to 15551234567 --message 'Hello'",
+		PersistentPreRunE: func(command *cobra.Command, _ []string) error {
+			options.prepareRedactions()
+			return confineCommandFiles(command, options.mcpRoot)
+		},
 	}
 	root.SetIn(deps.In)
 	root.SetOut(deps.Out)
-	root.SetErr(deps.Err)
+	root.SetErr(safeErr)
 	flags := root.PersistentFlags()
 	flags.StringVarP(&options.output, "output", "o", output.FormatTable, "output format: table, json, yaml, csv, or id")
 	flags.StringVar(&options.account, ProfileFlag, "", "named account to use")
@@ -106,6 +117,8 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 	flags.StringVar(&options.wabaID, "waba-id", "", "WhatsApp Business Account id override")
 	flags.StringVar(&options.phoneID, "phone-id", "", "WhatsApp phone number id override")
 	flags.StringVar(&options.appID, "app-id", "", "Meta app id override")
+	flags.StringVar(&options.mcpRoot, "mcp-root-internal", "", "internal MCP file root")
+	_ = flags.MarkHidden("mcp-root-internal")
 	for _, registrar := range apiRegistrars {
 		registrar(root, options)
 	}
@@ -113,6 +126,22 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 		registrar(root, options)
 	}
 	return root
+}
+
+func (options *globalOptions) prepareRedactions() {
+	options.redactions = []string{os.Getenv("METACTL_TOKEN"), os.Getenv("METACTL_PAGE_TOKEN"), os.Getenv("METACTL_APP_SECRET")}
+	name, account, err := options.loadAccount()
+	if err != nil {
+		return
+	}
+	credential, err := options.credentialFor(name)
+	if err != nil {
+		return
+	}
+	options.redactions = append(options.redactions, credential.Token, credential.PageToken, credential.AppSecret)
+	if account.AppID != "" && credential.AppSecret != "" {
+		options.redactions = append(options.redactions, account.AppID+"|"+credential.AppSecret)
+	}
 }
 
 func (options *globalOptions) loadAccount() (string, config.Account, error) {
@@ -135,6 +164,10 @@ func (options *globalOptions) loadAccount() (string, config.Account, error) {
 }
 
 func (options *globalOptions) clientFor() (*api.Client, string, config.Account, error) {
+	return options.clientForCommand(nil)
+}
+
+func (options *globalOptions) clientForCommand(command *cobra.Command) (*api.Client, string, config.Account, error) {
 	name, account, err := options.loadAccount()
 	if err != nil {
 		return nil, "", config.Account{}, err
@@ -143,10 +176,29 @@ func (options *globalOptions) clientFor() (*api.Client, string, config.Account, 
 	if storeErr != nil && !options.dryRun {
 		return nil, "", config.Account{}, fmt.Errorf("load credential for account %q: %w; run metactl auth login", name, storeErr)
 	}
+	options.redactions = []string{credential.Token, credential.PageToken, credential.AppSecret}
+	if account.AppID != "" && credential.AppSecret != "" {
+		options.redactions = append(options.redactions, account.AppID+"|"+credential.AppSecret)
+	}
+	pageOperation := command != nil && strings.HasPrefix(command.CommandPath(), "metactl pages ") &&
+		!strings.HasPrefix(command.CommandPath(), "metactl pages accounts ")
+	token := credential.Token
+	if pageOperation {
+		token = credential.PageToken
+		if token == "" {
+			if !options.dryRun {
+				return nil, "", config.Account{}, fmt.Errorf("no Page access token stored for account %q; run metactl auth pages --save --page-id PAGE_ID", name)
+			}
+			token = "<page-access-token>"
+		}
+	}
 	client, err := api.New(api.Options{
 		BaseURL: account.BaseURL, UploadURL: account.UploadURL, Version: account.GraphVersion,
-		Token: credential.Token, AppSecret: credential.AppSecret, DryRun: options.dryRun,
-		ShowToken: options.showToken, Writer: options.deps.Out, HTTPClient: options.deps.HTTPClient,
+		Token: token, AppSecret: credential.AppSecret, DryRun: options.dryRun,
+		ShowToken: options.showToken, AlwaysRedactToken: pageOperation,
+		Redactions: options.redactions,
+		Verbose:    options.verbose, Writer: options.deps.Err, Diagnostics: options.deps.Err,
+		HTTPClient: options.deps.HTTPClient,
 		RequestsPS: account.RequestsPS,
 	})
 	return client, name, account, err
@@ -156,6 +208,10 @@ func (options *globalOptions) credentialFor(name string) (auth.Credential, error
 	credential, err := options.deps.Store.Get(name)
 	if token := os.Getenv("METACTL_TOKEN"); token != "" {
 		credential.Token = token
+		err = nil
+	}
+	if token := os.Getenv("METACTL_PAGE_TOKEN"); token != "" {
+		credential.PageToken = token
 		err = nil
 	}
 	if secret := os.Getenv("METACTL_APP_SECRET"); secret != "" {
@@ -172,7 +228,7 @@ func (options *globalOptions) render(value any, preferred []string) error {
 	return output.New(output.Options{
 		Format: options.output, Columns: columns, JQ: options.jq, Sort: options.sort,
 		Filter: options.filter, NoColor: options.noColor || os.Getenv("NO_COLOR") != "",
-		Writer: options.deps.Out, Warnings: options.deps.Err,
+		Writer: options.deps.Out, Warnings: options.deps.Err, Secrets: options.redactions,
 	}).Render(value)
 }
 

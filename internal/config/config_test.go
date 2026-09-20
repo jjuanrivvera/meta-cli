@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -33,6 +34,15 @@ func TestLoadMissingAndPath(t *testing.T) {
 	path, err := Path()
 	require.NoError(t, err)
 	assert.Contains(t, path, filepath.Join("metactl", "config.yaml"))
+	value, err = Load("")
+	require.NoError(t, err)
+	assert.Empty(t, value.Accounts)
+	require.NoError(t, Save("", &Config{Accounts: map[string]Account{"default": {}}}))
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", t.TempDir())
+	path, err = Path()
+	require.NoError(t, err)
+	assert.Contains(t, path, filepath.Join(".config", "metactl", "config.yaml"))
 }
 
 func TestValidationAndPrecedence(t *testing.T) {
@@ -40,8 +50,11 @@ func TestValidationAndPrecedence(t *testing.T) {
 		assert.Error(t, ValidateAccount(name, Account{}))
 	}
 	assert.Error(t, ValidateAccount("ok", Account{BaseURL: "http://example.com"}))
+	assert.Error(t, ValidateAccount("ok", Account{UploadURL: "://bad"}))
 	assert.NoError(t, ValidateAccount("ok", Account{BaseURL: "http://127.0.0.1:8080"}))
+	assert.NoError(t, ValidateAccount("ok", Account{BaseURL: "http://localhost:8080"}))
 	assert.Equal(t, "flag", FirstNonEmpty("", "flag", "env"))
+	assert.Empty(t, FirstNonEmpty("", " "))
 }
 
 func TestLoadInvalidYAML(t *testing.T) {
@@ -49,4 +62,37 @@ func TestLoadInvalidYAML(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte("accounts: ["), 0o600))
 	_, err := Load(configPath)
 	assert.Error(t, err)
+	directory := t.TempDir()
+	_, err = Load(directory)
+	assert.ErrorContains(t, err, "read config")
+}
+
+func TestConfigAdditionalErrorBranches(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "minimal.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("current: work\n"), 0o600))
+	value, err := Load(path)
+	require.NoError(t, err)
+	assert.NotNil(t, value.Accounts)
+	assert.NotNil(t, value.Aliases)
+
+	invalid := &Config{Accounts: map[string]Account{"../bad": {}}}
+	assert.Error(t, Save(filepath.Join(t.TempDir(), "config.yaml"), invalid))
+	parentFile := filepath.Join(t.TempDir(), "parent")
+	require.NoError(t, os.WriteFile(parentFile, []byte("x"), 0o600))
+	assert.ErrorContains(t, Save(filepath.Join(parentFile, "config.yaml"), &Config{}), "create config directory")
+	destinationDirectory := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.Mkdir(destinationDirectory, 0o700))
+	assert.ErrorContains(t, Save(destinationDirectory, &Config{}), "replace config")
+
+	originalCreateTemp := createTemp
+	createTemp = func(string, string) (*os.File, error) { return nil, errors.New("denied") }
+	t.Cleanup(func() { createTemp = originalCreateTemp })
+	assert.ErrorContains(t, Save(filepath.Join(t.TempDir(), "config.yaml"), &Config{}), "create temporary config")
+
+	originalUserConfigDir := userConfigDir
+	userConfigDir = func() (string, error) { return "", errors.New("no config directory") }
+	t.Cleanup(func() { userConfigDir = originalUserConfigDir })
+	t.Setenv("XDG_CONFIG_HOME", "")
+	_, err = Path()
+	assert.ErrorContains(t, err, "resolve user config directory")
 }

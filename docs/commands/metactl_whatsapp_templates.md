@@ -37,7 +37,7 @@ Manage WhatsApp message templates
 
 * [metactl whatsapp](metactl_whatsapp.md)	 - Manage WhatsApp Business Cloud API resources
 * [metactl whatsapp templates create](metactl_whatsapp_templates_create.md)	 - Create a message template
-* [metactl whatsapp templates delete](metactl_whatsapp_templates_delete.md)	 - Delete a message template by name
+* [metactl whatsapp templates delete](metactl_whatsapp_templates_delete.md)	 - Delete one template translation by id, or all translations by name
 * [metactl whatsapp templates get](metactl_whatsapp_templates_get.md)	 - Get a message template
 * [metactl whatsapp templates list](metactl_whatsapp_templates_list.md)	 - List message templates
 * [metactl whatsapp templates update](metactl_whatsapp_templates_update.md)	 - Update a message template

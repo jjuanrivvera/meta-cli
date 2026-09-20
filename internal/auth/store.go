@@ -27,8 +27,15 @@ const (
 
 var ErrNotFound = errors.New("no stored credential")
 
+var (
+	keyringGet    = keyring.Get
+	keyringSet    = keyring.Set
+	keyringDelete = keyring.Delete
+)
+
 type Credential struct {
 	Token     string `json:"token,omitempty"`
+	PageToken string `json:"page_token,omitempty"`
 	AppSecret string `json:"app_secret,omitempty"`
 }
 
@@ -44,7 +51,7 @@ type keyringStore struct{}
 func (keyringStore) Backend() string { return "os-keyring" }
 
 func (keyringStore) Get(account string) (Credential, error) {
-	raw, err := keyring.Get(serviceName, key(account))
+	raw, err := keyringGet(serviceName, key(account))
 	if errors.Is(err, keyring.ErrNotFound) {
 		return Credential{}, ErrNotFound
 	}
@@ -63,14 +70,14 @@ func (keyringStore) Set(account string, credential Credential) error {
 	if err != nil {
 		return err
 	}
-	if err := keyring.Set(serviceName, key(account), string(raw)); err != nil {
+	if err := keyringSet(serviceName, key(account), string(raw)); err != nil {
 		return fmt.Errorf("write OS keyring: %w", err)
 	}
 	return nil
 }
 
 func (keyringStore) Delete(account string) error {
-	err := keyring.Delete(serviceName, key(account))
+	err := keyringDelete(serviceName, key(account))
 	if errors.Is(err, keyring.ErrNotFound) {
 		return ErrNotFound
 	}

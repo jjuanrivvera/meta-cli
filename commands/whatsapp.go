@@ -1,15 +1,10 @@
 package commands
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"mime/multipart"
 	"net/http"
-	"net/textproto"
 	"net/url"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -152,16 +147,28 @@ func whatsappTemplates(options *globalOptions) *cobra.Command {
 		}
 		return client.Write(command.Context(), args[0], nil, body)
 	}}
-	var deleteName string
-	remove := operationSpec{Use: "delete", Short: "Delete a message template by name", Kind: kindDestructive, Flags: func(command *cobra.Command) {
+	var deleteName, deleteID string
+	remove := operationSpec{Use: "delete", Short: "Delete one template translation by id, or all translations by name", Kind: kindDestructive, Confirm: func() string {
+		if deleteID == "" {
+			return fmt.Sprintf("Delete every language translation of template %q? [y/N] ", deleteName)
+		}
+		return fmt.Sprintf("Delete template translation %q (%s)? [y/N] ", deleteName, deleteID)
+	}, Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&deleteName, "name", "", "template name")
+		command.Flags().StringVar(&deleteID, "id", "", "template id (hsm_id) to delete only one language")
 		_ = command.MarkFlagRequired("name")
 	}, Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, account config.Account, _ []string) (any, error) {
 		wabaID, err := requireID(account.WABAID, "waba-id")
 		if err != nil {
 			return nil, err
 		}
-		return client.Remove(command.Context(), wabaID+"/message_templates", url.Values{"name": {deleteName}})
+		query := url.Values{"name": {deleteName}}
+		if deleteID != "" {
+			query.Set("hsm_id", deleteID)
+		} else {
+			fmt.Fprintf(command.ErrOrStderr(), "warning: deleting by name removes every language translation of template %q\n", deleteName)
+		}
+		return client.Remove(command.Context(), wabaID+"/message_templates", query)
 	}}
 	return newGroup("templates", "Manage WhatsApp message templates", []string{"template"}, options, list, get, create, update, remove)
 }
@@ -228,7 +235,7 @@ func whatsappMedia(options *globalOptions) *cobra.Command {
 	var filePath, contentType string
 	upload := operationSpec{Use: "upload", Short: "Upload WhatsApp media", Kind: kindWrite, Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&filePath, "file", "", "local media file")
-		command.Flags().StringVar(&contentType, "content-type", "application/octet-stream", "media MIME type")
+		command.Flags().StringVar(&contentType, "content-type", "", "media MIME type; inferred from the file when omitted")
 		_ = command.MarkFlagRequired("file")
 	}, Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, account config.Account, _ []string) (any, error) {
 		phoneID, err := requireID(account.PhoneID, "phone-id")
@@ -247,29 +254,31 @@ func whatsappMedia(options *globalOptions) *cobra.Command {
 }
 
 func uploadWhatsAppMedia(command *cobra.Command, client *api.Client, phoneID, filePath, contentType string) (any, error) {
-	data, err := os.ReadFile(filePath) // #nosec G304 -- the user explicitly selected this upload file
+	if contentType == "application/octet-stream" {
+		return nil, fmt.Errorf("application/octet-stream is not a supported WhatsApp media type")
+	}
+	if contentType == "" {
+		var err error
+		contentType, err = detectContentType(command.Context(), filePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	bodyFactory, multipartType, err := multipartFileBody(command.Context(), filePath, "file", contentType, map[string]string{
+		"messaging_product": "whatsapp",
+		"type":              contentType,
+	}, 0, 0)
 	if err != nil {
-		return nil, fmt.Errorf("read media: %w", err)
-	}
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	if err := writer.WriteField("messaging_product", "whatsapp"); err != nil {
 		return nil, err
 	}
-	header := make(textproto.MIMEHeader)
-	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filepath.Base(filePath)))
-	header.Set("Content-Type", contentType)
-	part, err := writer.CreatePart(header)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := part.Write(data); err != nil {
-		return nil, err
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-	return uploadResponse(command, client, api.Request{Method: http.MethodPost, Path: phoneID + "/media", Body: body.Bytes(), Headers: http.Header{"Content-Type": {writer.FormDataContentType()}}})
+	return uploadResponse(command, client, api.Request{
+		Method: http.MethodPost, Path: phoneID + "/media", BodyFactory: bodyFactory,
+		MultipartForm: multipartDryRun(filePath, "file", contentType, map[string]string{
+			"messaging_product": "whatsapp", "type": contentType,
+		}, 0, 0),
+		Headers:     http.Header{"Content-Type": {multipartType}},
+		LongRunning: true,
+	})
 }
 
 func whatsappSend(options *globalOptions) *cobra.Command {
@@ -284,7 +293,7 @@ func whatsappSend(options *globalOptions) *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		body, _ := json.Marshal(map[string]any{"messaging_product": "whatsapp", "to": to, "type": "text", "text": map[string]any{"body": message}})
+		body, _ := json.Marshal(map[string]any{"messaging_product": "whatsapp", "recipient_type": "individual", "to": to, "type": "text", "text": map[string]any{"body": message}})
 		return client.Write(command.Context(), phoneID+"/messages", nil, body)
 	}}
 	template := operationSpec{Use: "template", Short: "Send a WhatsApp template message (remote side effect)", Kind: kindWrite, Example: "  metactl whatsapp send template --to 15551234567 --name order_ready --language en_US", Flags: func(command *cobra.Command) {
@@ -307,7 +316,7 @@ func whatsappSend(options *globalOptions) *cobra.Command {
 			}
 			templateBody["components"] = parsed
 		}
-		body, _ := json.Marshal(map[string]any{"messaging_product": "whatsapp", "to": to, "type": "template", "template": templateBody})
+		body, _ := json.Marshal(map[string]any{"messaging_product": "whatsapp", "recipient_type": "individual", "to": to, "type": "template", "template": templateBody})
 		return client.Write(command.Context(), phoneID+"/messages", nil, body)
 	}}
 	return newGroup("send", "Send WhatsApp messages", nil, options, text, template)

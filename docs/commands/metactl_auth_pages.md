@@ -16,6 +16,7 @@ metactl auth pages [flags]
 
 ```
   -h, --help   help for pages
+      --save   store the selected Page access token for Pages operations
 ```
 
 ### Options inherited from parent commands
