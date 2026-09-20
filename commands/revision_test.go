@@ -320,6 +320,7 @@ func TestPublishedPageVideoReportsThumbnailPartialFailure(t *testing.T) {
 func TestPublishedPageReelReportsProcessingPartialFailure(t *testing.T) {
 	videoPath := filepath.Join(t.TempDir(), "reel.mp4")
 	require.NoError(t, os.WriteFile(videoPath, []byte("data"), 0o600))
+	polls := 0
 	test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) {
 		switch {
 		case request.URL.Path == "/v26.0/page-1/video_reels" && request.Method == http.MethodPost:
@@ -333,7 +334,12 @@ func TestPublishedPageReelReportsProcessingPartialFailure(t *testing.T) {
 		case request.URL.Path == "/video-upload/v26.0/video-1":
 			_, _ = io.WriteString(writer, `{"success":true}`)
 		case request.URL.Path == "/v26.0/video-1":
-			_, _ = io.WriteString(writer, `{"id":"video-1","status":{"processing_phase":{"status":"COMPLETE"},"publishing_phase":{"status":"ERROR"}}}`)
+			polls++
+			if polls == 1 {
+				_, _ = io.WriteString(writer, `{"id":"video-1","status":{"video_status":"READY","processing_phase":{"status":"COMPLETE"},"publishing_phase":{"status":"IN_PROGRESS"}}}`)
+			} else {
+				_, _ = io.WriteString(writer, `{"id":"video-1","status":{"video_status":"READY","processing_phase":{"status":"COMPLETE"},"publishing_phase":{"status":"ERROR"}}}`)
+			}
 		default:
 			http.NotFound(writer, request)
 		}
@@ -342,6 +348,7 @@ func TestPublishedPageReelReportsProcessingPartialFailure(t *testing.T) {
 	err := test.run("--base-url", serverURL, "--upload-url", serverURL, "--page-id", "page-1", "pages", "reels", "publish", "--video", videoPath, "--poll-interval", "1ms", "-o", "json")
 	require.Error(t, err)
 	assert.Equal(t, 2, ExitCode(err))
+	assert.Equal(t, 2, polls)
 	assert.Contains(t, test.output.String(), `"id": "video-1"`)
 	assert.Contains(t, test.output.String(), `"processing_status": "failed"`)
 }
@@ -359,6 +366,7 @@ func TestPageReelStatusPrioritizesPublishingPhase(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			status := map[string]any{"status": map[string]any{
+				"video_status":     "READY",
 				"uploading_phase":  map[string]any{"status": "COMPLETE"},
 				"processing_phase": map[string]any{"status": "COMPLETE"},
 				"publishing_phase": map[string]any{"status": test.publishing},
@@ -412,6 +420,32 @@ func TestOutputFailuresCannotHideOrPrecedePublicationState(t *testing.T) {
 		assert.Contains(t, test.output.String(), `"id": "video-1"`)
 		assert.Contains(t, test.output.String(), `"processing_status": "failed"`)
 	})
+
+	t.Run("runtime jq failure preserves successful publication", func(t *testing.T) {
+		calls := 0
+		test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) {
+			calls++
+			assert.Equal(t, "/v26.0/page-1/feed", request.URL.Path)
+			_, _ = io.WriteString(writer, `{"id":"post-1"}`)
+		})
+		test.store.values["default"] = auth.Credential{Token: "user-token", PageToken: "page-token"}
+
+		err := test.run("--base-url", serverURL, "--page-id", "page-1", "pages", "posts", "create", "--message", "hello", "-o", "json", "--jq", ".id | tonumber")
+		require.Error(t, err)
+		assert.Equal(t, 2, ExitCode(err))
+		assert.Equal(t, 1, calls)
+		assert.Contains(t, err.Error(), "emitted unfiltered JSON")
+		assert.Contains(t, test.output.String(), `"id": "post-1"`)
+	})
+}
+
+func TestAuthLogoutDryRunPreservesCredential(t *testing.T) {
+	test, _ := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) { http.NotFound(writer, request) })
+	want := test.store.values["default"]
+
+	require.NoError(t, test.run("--dry-run", "auth", "logout"))
+	assert.Equal(t, want, test.store.values["default"])
+	assert.Contains(t, test.output.String(), "would be removed")
 }
 
 func TestWhatsAppMediaSendsRequiredMultipartFields(t *testing.T) {
@@ -571,6 +605,75 @@ func TestAuthLoginRedactsStoredSecretsFromSuccessfulIdentity(t *testing.T) {
 	assert.NotContains(t, test.output.String(), storedPage)
 	assert.NotContains(t, test.output.String(), environmentPage)
 	assert.Contains(t, test.output.String(), "redacted")
+}
+
+func TestEnvironmentOverridesDoNotDisplaceStoredSecretRedactions(t *testing.T) {
+	stored := auth.Credential{Token: "stored-user-secret", PageToken: "stored-page-secret", AppSecret: "stored-app-secret"}
+	effective := auth.Credential{Token: "environment-user-secret", PageToken: "environment-page-secret", AppSecret: "environment-app-secret"}
+	t.Setenv("METACTL_TOKEN", effective.Token)
+	t.Setenv("METACTL_PAGE_TOKEN", effective.PageToken)
+	t.Setenv("METACTL_APP_SECRET", effective.AppSecret)
+	test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "Bearer "+effective.PageToken, request.Header.Get("Authorization"))
+		_, _ = io.WriteString(writer, `{"data":[{"id":"post-1","message":"`+stored.Token+` `+stored.PageToken+` `+stored.AppSecret+` `+effective.Token+` `+effective.PageToken+` `+effective.AppSecret+`"}]}`)
+	})
+	test.store.values["default"] = stored
+
+	require.NoError(t, test.run("--base-url", serverURL, "--page-id", "page-1", "--app-id", "app-1", "pages", "posts", "list", "-o", "json"))
+	for _, secret := range []string{stored.Token, stored.PageToken, stored.AppSecret, effective.Token, effective.PageToken, effective.AppSecret} {
+		assert.NotContains(t, test.output.String(), secret)
+	}
+	assert.Contains(t, test.output.String(), "redacted")
+}
+
+func TestPagePublishResultsRetainStartedVideoID(t *testing.T) {
+	t.Run("video", func(t *testing.T) {
+		filePath := filepath.Join(t.TempDir(), "video.mp4")
+		require.NoError(t, os.WriteFile(filePath, []byte("data"), 0o600))
+		test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) {
+			switch request.URL.Query().Get("upload_phase") {
+			case "start":
+				_, _ = io.WriteString(writer, `{"upload_session_id":"session-1","video_id":"video-1","start_offset":"0","end_offset":"4"}`)
+			case "transfer":
+				_, _ = io.WriteString(writer, `{"start_offset":"4","end_offset":"4"}`)
+			case "finish":
+				_, _ = io.WriteString(writer, `{"success":true}`)
+			default:
+				http.NotFound(writer, request)
+			}
+		})
+		test.store.values["default"] = auth.Credential{Token: "user-token", PageToken: "page-token"}
+
+		require.NoError(t, test.run("--base-url", serverURL, "--page-id", "page-1", "pages", "videos", "publish", "--file", filePath, "-o", "id"))
+		assert.Equal(t, "video-1\n", test.output.String())
+	})
+
+	t.Run("reel", func(t *testing.T) {
+		filePath := filepath.Join(t.TempDir(), "reel.mp4")
+		require.NoError(t, os.WriteFile(filePath, []byte("data"), 0o600))
+		test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) {
+			switch {
+			case request.URL.Path == "/v26.0/page-1/video_reels" && request.Method == http.MethodPost:
+				body, err := io.ReadAll(request.Body)
+				require.NoError(t, err)
+				if strings.Contains(string(body), `"upload_phase":"start"`) {
+					_, _ = io.WriteString(writer, `{"video_id":"reel-1"}`)
+				} else {
+					_, _ = io.WriteString(writer, `{"success":true}`)
+				}
+			case request.URL.Path == "/video-upload/v26.0/reel-1":
+				_, _ = io.WriteString(writer, `{"success":true}`)
+			case request.URL.Path == "/v26.0/reel-1":
+				_, _ = io.WriteString(writer, `{"id":"reel-1","status":{"video_status":"READY"}}`)
+			default:
+				http.NotFound(writer, request)
+			}
+		})
+		test.store.values["default"] = auth.Credential{Token: "user-token", PageToken: "page-token"}
+
+		require.NoError(t, test.run("--base-url", serverURL, "--upload-url", serverURL, "--page-id", "page-1", "pages", "reels", "publish", "--video", filePath, "--poll-interval", "1ms", "-o", "id"))
+		assert.Equal(t, "reel-1\n", test.output.String())
+	})
 }
 
 func TestUploadBodiesStreamFromDiskInsteadOfSnapshottingFiles(t *testing.T) {

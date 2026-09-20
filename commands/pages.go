@@ -316,7 +316,7 @@ func publishPageVideo(command *cobra.Command, options *globalOptions, client *ap
 			return result, &partialFailureError{message: fmt.Sprintf("video %s was published but the thumbnail upload failed: %v", videoID, err)}
 		}
 	}
-	return finished, nil
+	return resultWithID(videoID, finished), nil
 }
 
 func setPageVideoThumbnail(command *cobra.Command, client *api.Client, videoID, filePath, contentType string, preferred bool) (any, error) {
@@ -473,7 +473,20 @@ func publishPageReel(command *cobra.Command, options *globalOptions, client *api
 			return map[string]any{"id": videoID, "published": finished, "thumbnail_status": "failed", "thumbnail_error": err.Error()}, &partialFailureError{message: fmt.Sprintf("reel %s was published but the thumbnail upload failed: %v", videoID, err)}
 		}
 	}
-	return finished, nil
+	return resultWithID(videoID, finished), nil
+}
+
+func resultWithID(id string, value any) map[string]any {
+	result := map[string]any{}
+	if object, ok := value.(map[string]any); ok {
+		for key, item := range object {
+			result[key] = item
+		}
+	} else if value != nil {
+		result["result"] = value
+	}
+	result["id"] = id
+	return result
 }
 
 func pageReelFinishBody(videoID, title, description string, scheduledAt int64) []byte {
@@ -527,11 +540,16 @@ func statusState(value any) string {
 		}
 	}
 	for _, source := range sources {
+		if state := nestedStatus(source["publishing_phase"]); state != "" {
+			return state
+		}
+	}
+	for _, source := range sources {
 		if state := nestedStatus(source["video_status"]); state != "" {
 			return state
 		}
 	}
-	for _, phase := range []string{"publishing_phase", "processing_phase", "uploading_phase"} {
+	for _, phase := range []string{"processing_phase", "uploading_phase"} {
 		for _, source := range sources {
 			if state := nestedStatus(source[phase]); state != "" {
 				return state

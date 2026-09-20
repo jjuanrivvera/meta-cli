@@ -137,14 +137,9 @@ func (options *globalOptions) prepareRedactions() {
 	if err != nil {
 		return
 	}
-	credential, err := options.credentialFor(name)
-	if err != nil {
-		return
-	}
-	options.redactions = append(options.redactions, credential.Token, credential.PageToken, credential.AppSecret)
-	if account.AppID != "" && credential.AppSecret != "" {
-		options.redactions = append(options.redactions, account.AppID+"|"+credential.AppSecret)
-	}
+	stored, _ := options.deps.Store.Get(name)
+	effective, _ := options.credentialFor(name)
+	options.addCredentialRedactions(account, stored, effective)
 }
 
 func (options *globalOptions) loadAccount() (string, config.Account, error) {
@@ -179,10 +174,9 @@ func (options *globalOptions) clientForCommand(command *cobra.Command) (*api.Cli
 	if storeErr != nil && !options.dryRun {
 		return nil, "", config.Account{}, fmt.Errorf("load credential for account %q: %w; run metactl auth login", name, storeErr)
 	}
-	options.redactions = []string{credential.Token, credential.PageToken, credential.AppSecret}
-	if account.AppID != "" && credential.AppSecret != "" {
-		options.redactions = append(options.redactions, account.AppID+"|"+credential.AppSecret)
-	}
+	stored, _ := options.deps.Store.Get(name)
+	options.redactions = options.redactions[:0]
+	options.addCredentialRedactions(account, stored, credential)
 	pageOperation := command != nil && strings.HasPrefix(command.CommandPath(), "metactl pages ") &&
 		!strings.HasPrefix(command.CommandPath(), "metactl pages accounts ")
 	token := credential.Token
@@ -221,6 +215,15 @@ func (options *globalOptions) credentialFor(name string) (auth.Credential, error
 		credential.AppSecret = secret
 	}
 	return credential, err
+}
+
+func (options *globalOptions) addCredentialRedactions(account config.Account, credentials ...auth.Credential) {
+	for _, credential := range credentials {
+		options.redactions = append(options.redactions, credential.Token, credential.PageToken, credential.AppSecret)
+		if account.AppID != "" && credential.AppSecret != "" {
+			options.redactions = append(options.redactions, account.AppID+"|"+credential.AppSecret)
+		}
+	}
 }
 
 func (options *globalOptions) render(value any, preferred []string) error {

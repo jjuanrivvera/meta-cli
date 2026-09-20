@@ -108,6 +108,12 @@ func newAuthLogoutCmd(options *globalOptions) *cobra.Command {
 		if err != nil {
 			return err
 		}
+		if options.dryRun {
+			if !options.quiet {
+				fmt.Fprintf(command.ErrOrStderr(), "dry-run: credential for account %q would be removed\n", name)
+			}
+			return nil
+		}
 		if err := options.deps.Store.Delete(name); err != nil && !errors.Is(err, auth.ErrNotFound) {
 			return err
 		}

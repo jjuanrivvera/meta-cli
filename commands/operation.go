@@ -55,13 +55,18 @@ func newOperationCommand(options *globalOptions, spec operationSpec) *cobra.Comm
 			if result != nil {
 				if renderErr := options.render(result, spec.Columns); renderErr != nil {
 					var partial *partialFailureError
-					if errors.As(err, &partial) {
+					mutationCompleted := err == nil && !options.dryRun && (spec.Kind == kindWrite || spec.Kind == kindDestructive)
+					if errors.As(err, &partial) || mutationCompleted {
 						// A published object must remain visible even when a data-dependent jq
 						// expression fails; otherwise retrying can duplicate the publication.
-						if fallbackErr := options.renderPartialFallback(result); fallbackErr != nil {
-							return fmt.Errorf("%w; requested output failed: %w; fallback output failed: %w", err, renderErr, fallbackErr)
+						cause := err
+						if cause == nil {
+							cause = &partialFailureError{message: fmt.Sprintf("%s completed but its result could not be rendered", command.CommandPath())}
 						}
-						return fmt.Errorf("%w; requested output failed: %w; emitted unfiltered JSON instead", err, renderErr)
+						if fallbackErr := options.renderPartialFallback(result); fallbackErr != nil {
+							return fmt.Errorf("%w; requested output failed: %w; fallback output failed: %w", cause, renderErr, fallbackErr)
+						}
+						return fmt.Errorf("%w; requested output failed: %w; emitted unfiltered JSON instead", cause, renderErr)
 					}
 					return renderErr
 				}
