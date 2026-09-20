@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jjuanrivvera/meta-cli/internal/auth"
+	"github.com/jjuanrivvera/meta-cli/internal/config"
 )
 
 func TestClassifyCommandsAndAliases(t *testing.T) {
@@ -64,4 +66,37 @@ func TestWriteGuardFilesNeverOverwrites(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, info.Mode()&0o100)
 	assert.Error(t, writeGuardFiles(command, directory, files))
+}
+
+func TestUserAliasClassificationAndGuardCommand(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, config.Save(configPath, &config.Config{Aliases: map[string]string{
+		"read-posts": "pages posts list --all",
+		"broken":     "does-not-exist",
+	}}))
+	root := NewRootCmd(Dependencies{Store: &memoryStore{values: map[string]auth.Credential{}}, ConfigPath: configPath})
+	classified := addUserAliases(classifyCommands(root), configPath)
+	var found bool
+	for _, item := range classified {
+		if item.Path == "read-posts" {
+			found = true
+			assert.Equal(t, guardRead, item.Kind)
+		}
+	}
+	assert.True(t, found)
+
+	var output bytes.Buffer
+	root.SetOut(&output)
+	root.SetErr(&output)
+	root.SetArgs([]string{"agent", "guard", "--host", "codex"})
+	require.NoError(t, root.Execute())
+	assert.Contains(t, output.String(), "sandbox_mode")
+
+	output.Reset()
+	root = NewRootCmd(Dependencies{Out: &output, Err: &output, Store: &memoryStore{values: map[string]auth.Credential{}}, ConfigPath: configPath})
+	root.SetOut(&output)
+	root.SetErr(&output)
+	root.SetArgs([]string{"agent", "classify", "-o", "json"})
+	require.NoError(t, root.Execute())
+	assert.Contains(t, output.String(), "pages posts delete")
 }

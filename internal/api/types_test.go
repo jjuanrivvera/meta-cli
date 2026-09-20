@@ -28,6 +28,9 @@ func TestFlexibleTypes(t *testing.T) {
 	var decimal Money
 	require.NoError(t, json.Unmarshal([]byte(`"123.4500"`), &decimal))
 	assert.Equal(t, Money("123.4500"), decimal)
+	encoded, err := json.Marshal(decimal)
+	require.NoError(t, err)
+	assert.JSONEq(t, `"123.4500"`, string(encoded))
 	assert.Error(t, json.Unmarshal([]byte(`"NaN"`), &decimal))
 
 	var stringsValue StringOrSlice

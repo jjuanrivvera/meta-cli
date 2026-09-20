@@ -135,4 +135,32 @@ func TestInitAndPromptHelpers(t *testing.T) {
 	line, err := promptLine(root, "Prompt: ")
 	require.NoError(t, err)
 	assert.Equal(t, "line value", line)
+
+	root.SetIn(strings.NewReader(" pasted-secret\n"))
+	secret, err := promptSecret(root, "Secret: ")
+	require.NoError(t, err)
+	assert.Equal(t, "pasted-secret", secret)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return function(request)
+}
+
+func TestVersionCheck(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		assert.Equal(t, "api.github.com", request.URL.Host)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader(`{"tag_name":"v9.9.9"}`)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+	var output bytes.Buffer
+	root := NewRootCmd(Dependencies{Out: &output, Err: &output, HTTPClient: client, ConfigPath: filepath.Join(t.TempDir(), "config.yaml"), Store: &memoryStore{values: map[string]auth.Credential{}}})
+	root.SetArgs([]string{"version", "--check", "--json", "-o", "json"})
+	require.NoError(t, root.Execute())
+	assert.Contains(t, output.String(), "v9.9.9")
 }

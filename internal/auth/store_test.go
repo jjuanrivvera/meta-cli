@@ -48,3 +48,22 @@ func TestEncryptRejectsWrongPassword(t *testing.T) {
 	_, err = decrypt(raw, "two")
 	assert.Error(t, err)
 }
+
+func TestStoreSelectionAndHelpers(t *testing.T) {
+	t.Setenv(backendEnv, "file")
+	t.Setenv(passwordEnv, "password")
+	configPath := filepath.Join(t.TempDir(), "nested", "config.yaml")
+	store := NewStore(configPath)
+	assert.Equal(t, "encrypted-file", store.Backend())
+	assert.Equal(t, filepath.Join(filepath.Dir(configPath), encryptedFilename), credentialPath(configPath))
+	assert.Equal(t, encryptedFilename, credentialPath(""))
+	assert.Equal(t, "account-work", key("work"))
+
+	keyring := keyringStore{}
+	assert.Equal(t, "os-keyring", keyring.Backend())
+	assert.Equal(t, "encrypted-file", NewFileStore("path", "password").Backend())
+
+	missing := NewFileStore(filepath.Join(t.TempDir(), "credentials.enc"), "password")
+	_, err := missing.Get("missing")
+	assert.ErrorIs(t, err, ErrNotFound)
+}

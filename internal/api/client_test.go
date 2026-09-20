@@ -168,4 +168,24 @@ func TestHelpers(t *testing.T) {
 	assert.Equal(t, 3*time.Second, delay)
 	_, ok = retryAfter("invalid", time.Now())
 	assert.False(t, ok)
+	assert.Zero(t, fullJitter(0))
+	assert.LessOrEqual(t, fullJitter(time.Second), time.Second)
+}
+
+func TestAPIErrorHints(t *testing.T) {
+	tests := []struct {
+		error *APIError
+		hint  string
+	}{
+		{&APIError{StatusCode: http.StatusForbidden}, "permissions"},
+		{&APIError{StatusCode: http.StatusNotFound}, "object id"},
+		{&APIError{StatusCode: http.StatusTooManyRequests}, "rate limited"},
+		{&APIError{StatusCode: http.StatusBadGateway}, "server error"},
+		{&APIError{StatusCode: http.StatusBadRequest, Body: "bad body"}, "--verbose"},
+	}
+	for _, test := range tests {
+		assert.Contains(t, test.error.Hint(), test.hint)
+		assert.Contains(t, test.error.Error(), test.hint)
+	}
+	assert.Equal(t, "abcd…", truncate("abcdefgh", 4))
 }
