@@ -88,6 +88,9 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 		Example:       "  metactl pages posts list --page-id 123\n  metactl instagram publish reel --instagram-id 456 --video ./reel.mp4 --dry-run\n  metactl whatsapp send text --phone-id 789 --to 15551234567 --message 'Hello'",
 		PersistentPreRunE: func(command *cobra.Command, _ []string) error {
 			options.prepareRedactions()
+			if err := output.Validate(options.output, options.jq); err != nil {
+				return err
+			}
 			return confineCommandFiles(command, options.mcpRoot)
 		},
 	}
@@ -229,6 +232,13 @@ func (options *globalOptions) render(value any, preferred []string) error {
 		Format: options.output, Columns: columns, JQ: options.jq, Sort: options.sort,
 		Filter: options.filter, NoColor: options.noColor || os.Getenv("NO_COLOR") != "",
 		Writer: options.deps.Out, Warnings: options.deps.Err, Secrets: options.redactions,
+	}).Render(value)
+}
+
+func (options *globalOptions) renderPartialFallback(value any) error {
+	return output.New(output.Options{
+		Format: output.FormatJSON, Writer: options.deps.Out, Warnings: options.deps.Err,
+		NoColor: true, Secrets: options.redactions,
 	}).Render(value)
 }
 

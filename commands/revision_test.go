@@ -346,6 +346,52 @@ func TestPublishedPageReelReportsProcessingPartialFailure(t *testing.T) {
 	assert.Contains(t, test.output.String(), `"processing_status": "failed"`)
 }
 
+func TestOutputFailuresCannotHideOrPrecedePublicationState(t *testing.T) {
+	t.Run("static validation precedes Graph request", func(t *testing.T) {
+		calls := 0
+		test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, _ *http.Request) {
+			calls++
+			_, _ = io.WriteString(writer, `{"id":"post-1"}`)
+		})
+		test.store.values["default"] = auth.Credential{Token: "user-token", PageToken: "page-token"}
+
+		err := test.run("--base-url", serverURL, "--page-id", "page-1", "-o", "invalid", "pages", "posts", "create", "--message", "hello")
+		require.ErrorContains(t, err, "unsupported output format")
+		assert.Zero(t, calls)
+	})
+
+	t.Run("runtime jq failure preserves partial publication", func(t *testing.T) {
+		videoPath := filepath.Join(t.TempDir(), "reel.mp4")
+		require.NoError(t, os.WriteFile(videoPath, []byte("data"), 0o600))
+		test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) {
+			switch {
+			case request.URL.Path == "/v26.0/page-1/video_reels" && request.Method == http.MethodPost:
+				body, err := io.ReadAll(request.Body)
+				require.NoError(t, err)
+				if strings.Contains(string(body), `"upload_phase":"start"`) {
+					_, _ = io.WriteString(writer, `{"video_id":"video-1"}`)
+				} else {
+					_, _ = io.WriteString(writer, `{"success":true,"id":"video-1"}`)
+				}
+			case request.URL.Path == "/video-upload/v26.0/video-1":
+				_, _ = io.WriteString(writer, `{"success":true}`)
+			case request.URL.Path == "/v26.0/video-1":
+				_, _ = io.WriteString(writer, `{"id":"video-1","status":{"processing_phase":{"status":"ERROR"}}}`)
+			default:
+				http.NotFound(writer, request)
+			}
+		})
+		test.store.values["default"] = auth.Credential{Token: "user-token", PageToken: "page-token"}
+
+		err := test.run("--base-url", serverURL, "--upload-url", serverURL, "--page-id", "page-1", "pages", "reels", "publish", "--video", videoPath, "--poll-interval", "1ms", "-o", "json", "--jq", ".id | tonumber")
+		require.Error(t, err)
+		assert.Equal(t, 2, ExitCode(err))
+		assert.Contains(t, err.Error(), "emitted unfiltered JSON")
+		assert.Contains(t, test.output.String(), `"id": "video-1"`)
+		assert.Contains(t, test.output.String(), `"processing_status": "failed"`)
+	})
+}
+
 func TestWhatsAppMediaSendsRequiredMultipartFields(t *testing.T) {
 	filePath := filepath.Join(t.TempDir(), "image.jpg")
 	require.NoError(t, os.WriteFile(filePath, []byte("image-data"), 0o600))

@@ -27,6 +27,12 @@ func TestFormatsAndTransforms(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsStaticOutputErrors(t *testing.T) {
+	require.NoError(t, Validate(FormatJSON, ".id"))
+	require.ErrorContains(t, Validate("xml", ""), "unsupported output format")
+	require.ErrorContains(t, Validate(FormatJSON, ".["), "parse --jq")
+}
+
 func TestJQFilterColumnsAndSanitization(t *testing.T) {
 	value := map[string]any{"data": []any{map[string]any{"id": "1", "status": "on", "message": "hello\x1b[31m"}, map[string]any{"id": "2", "status": "off"}}}
 	var output bytes.Buffer

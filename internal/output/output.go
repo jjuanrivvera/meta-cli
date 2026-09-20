@@ -54,7 +54,28 @@ func New(options Options) *Renderer {
 	return &Renderer{options: options}
 }
 
+// Validate rejects static output errors before a command can perform a remote mutation.
+func Validate(format, jq string) error {
+	if format == "" {
+		format = FormatTable
+	}
+	switch format {
+	case FormatTable, FormatJSON, FormatYAML, FormatCSV, FormatID:
+	default:
+		return fmt.Errorf("unsupported output format %q; use table, json, yaml, csv, or id", format)
+	}
+	if jq != "" {
+		if _, err := gojq.Parse(jq); err != nil {
+			return fmt.Errorf("parse --jq: %w", err)
+		}
+	}
+	return nil
+}
+
 func (renderer *Renderer) Render(value any) error {
+	if err := Validate(renderer.options.Format, renderer.options.JQ); err != nil {
+		return err
+	}
 	normalized, err := normalize(value)
 	if err != nil {
 		return err
@@ -92,7 +113,7 @@ func (renderer *Renderer) Render(value any) error {
 	case FormatTable:
 		return renderer.table(rows)
 	default:
-		return fmt.Errorf("unsupported output format %q; use table, json, yaml, csv, or id", renderer.options.Format)
+		panic("output format passed validation but has no renderer")
 	}
 }
 
