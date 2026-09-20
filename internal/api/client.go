@@ -265,7 +265,17 @@ func (client *Client) curl(spec Request, requestURL *url.URL) string {
 	if client.showToken {
 		token = client.token
 	}
-	parts := []string{"curl", "-X", shellQuote(spec.Method), shellQuote(requestURL.String())}
+	displayURL := *requestURL
+	if !client.showToken {
+		query := displayURL.Query()
+		for _, key := range []string{"access_token", "input_token", "appsecret_proof", "app_secret", "fb_exchange_token"} {
+			if query.Has(key) {
+				query.Set(key, "<redacted>")
+			}
+		}
+		displayURL.RawQuery = query.Encode()
+	}
+	parts := []string{"curl", "-X", shellQuote(spec.Method), shellQuote(displayURL.String())}
 	if client.token != "" {
 		scheme := "Bearer"
 		if spec.Upload {

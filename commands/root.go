@@ -139,14 +139,7 @@ func (options *globalOptions) clientFor() (*api.Client, string, config.Account, 
 	if err != nil {
 		return nil, "", config.Account{}, err
 	}
-	credential, storeErr := options.deps.Store.Get(name)
-	if token := os.Getenv("METACTL_TOKEN"); token != "" {
-		credential.Token = token
-		storeErr = nil
-	}
-	if secret := os.Getenv("METACTL_APP_SECRET"); secret != "" {
-		credential.AppSecret = secret
-	}
+	credential, storeErr := options.credentialFor(name)
 	if storeErr != nil && !options.dryRun {
 		return nil, "", config.Account{}, fmt.Errorf("load credential for account %q: %w; run metactl auth login", name, storeErr)
 	}
@@ -157,6 +150,18 @@ func (options *globalOptions) clientFor() (*api.Client, string, config.Account, 
 		RequestsPS: account.RequestsPS,
 	})
 	return client, name, account, err
+}
+
+func (options *globalOptions) credentialFor(name string) (auth.Credential, error) {
+	credential, err := options.deps.Store.Get(name)
+	if token := os.Getenv("METACTL_TOKEN"); token != "" {
+		credential.Token = token
+		err = nil
+	}
+	if secret := os.Getenv("METACTL_APP_SECRET"); secret != "" {
+		credential.AppSecret = secret
+	}
+	return credential, err
 }
 
 func (options *globalOptions) render(value any, preferred []string) error {

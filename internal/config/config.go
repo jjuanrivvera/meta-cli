@@ -31,6 +31,7 @@ type Account struct {
 type Config struct {
 	Current  string             `yaml:"current,omitempty" json:"current,omitempty"`
 	Accounts map[string]Account `yaml:"accounts,omitempty" json:"accounts,omitempty"`
+	Aliases  map[string]string  `yaml:"aliases,omitempty" json:"aliases,omitempty"`
 }
 
 func Path() (string, error) {
@@ -65,6 +66,9 @@ func Load(configPath string) (*Config, error) {
 	}
 	if value.Accounts == nil {
 		value.Accounts = map[string]Account{}
+	}
+	if value.Aliases == nil {
+		value.Aliases = map[string]string{}
 	}
 	return &value, nil
 }

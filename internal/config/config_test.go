@@ -12,7 +12,7 @@ import (
 
 func TestSaveLoadAndPermissions(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "nested", "config.yaml")
-	want := &Config{Current: "work", Accounts: map[string]Account{"work": {BaseURL: "https://graph.facebook.com", GraphVersion: "v26.0", PageID: "123"}}}
+	want := &Config{Current: "work", Accounts: map[string]Account{"work": {BaseURL: "https://graph.facebook.com", GraphVersion: "v26.0", PageID: "123"}}, Aliases: map[string]string{}}
 	require.NoError(t, Save(configPath, want))
 	got, err := Load(configPath)
 	require.NoError(t, err)
