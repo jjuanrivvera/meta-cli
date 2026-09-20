@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if git diff --cached --name-only | rg -q '(^|/).+\.go$|go\.(mod|sum)$|api-manifest\.json|specs/enumeration\.json'; then
+  make verify
+fi
+

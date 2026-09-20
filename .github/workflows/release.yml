@@ -1,0 +1,10 @@
+name: Release
+on:
+  push: {tags: ['v*']}
+  workflow_dispatch:
+jobs:
+  fleet:
+    if: ${{ !contains(github.ref_name, '-') }}
+    uses: jjuanrivvera/.github/.github/workflows/go-release.yml@main
+    secrets: inherit
+

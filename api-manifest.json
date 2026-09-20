@@ -1,0 +1,36 @@
+{
+  "api": "Meta Business Graph API",
+  "binary": "metactl",
+  "base_url": "https://graph.facebook.com/{version}",
+  "graph_version": "v26.0",
+  "profile_flag": "account",
+  "profile_noun": "account",
+  "api_method_total": 66,
+  "api_method_source": "Meta v26 reference documentation enumerated 2026-09-19; see specs/enumeration.json",
+  "enumeration": "specs/enumeration.json",
+  "resources": [
+    {"path":"auth","verbs":["debug","exchange"]},
+    {"path":"instagram accounts","verbs":["list"]},
+    {"path":"instagram containers","verbs":["create","status","upload","publish"]},
+    {"path":"instagram publish","verbs":["reel"]},
+    {"path":"instagram media","verbs":["list","get"]},
+    {"path":"instagram comments","verbs":["list","create","replies","reply","hide","delete"]},
+    {"path":"instagram insights","verbs":["account","media"]},
+    {"path":"instagram limits","verbs":["publishing"]},
+    {"path":"pages accounts","verbs":["list"]},
+    {"path":"pages posts","verbs":["create","list","get","update","delete"]},
+    {"path":"pages photos","verbs":["create","list","get"]},
+    {"path":"pages videos","verbs":["start","upload","status","finish","thumbnail","publish"]},
+    {"path":"pages reels","verbs":["start","upload","status","finish","publish"]},
+    {"path":"pages comments","verbs":["list","reply","hide","delete"]},
+    {"path":"pages insights","verbs":["page","post"]},
+    {"path":"whatsapp accounts","verbs":["list","get"]},
+    {"path":"whatsapp phones","verbs":["list","get"]},
+    {"path":"whatsapp templates","verbs":["list","get","create","update","delete"]},
+    {"path":"whatsapp apps","verbs":["list","subscribe","unsubscribe"]},
+    {"path":"whatsapp profile","verbs":["get","update"]},
+    {"path":"whatsapp media","verbs":["upload","get","delete"]},
+    {"path":"whatsapp send","verbs":["text","template"]}
+  ]
+}
+

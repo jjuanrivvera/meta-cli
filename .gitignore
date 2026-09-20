@@ -1,0 +1,6 @@
+.firecrawl/
+bin/
+dist/
+coverage.out
+site/
+*.test

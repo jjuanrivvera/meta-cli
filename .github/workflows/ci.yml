@@ -1,0 +1,15 @@
+name: CI
+on:
+  push: {branches: [main, develop]}
+  pull_request:
+  workflow_dispatch:
+jobs:
+  fleet:
+    uses: jjuanrivvera/.github/.github/workflows/go-ci.yml@main
+    with:
+      coverage-threshold: "80"
+      coverpkg: true
+      run-gosec: true
+      run-docs-check: true
+      run-build: true
+
