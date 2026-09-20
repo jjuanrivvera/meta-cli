@@ -513,22 +513,61 @@ func statusState(value any) string {
 	if !ok {
 		return ""
 	}
-	for _, key := range []string{"video_status", "status"} {
-		if text, ok := object[key].(string); ok {
-			return text
-		}
-		if nested, ok := object[key].(map[string]any); ok {
-			for _, phase := range []string{"processing_phase", "uploading_phase"} {
-				if state := statusState(nested[phase]); state != "" {
-					return state
-				}
-			}
-			if state, ok := nested["status"].(string); ok {
+	sources := []map[string]any{object}
+	if nested, ok := object["status"].(map[string]any); ok {
+		sources = append(sources, nested)
+	}
+
+	// A terminal phase failure is authoritative even when an earlier phase is complete.
+	for _, source := range sources {
+		for _, phase := range []string{"uploading_phase", "processing_phase", "publishing_phase"} {
+			if state := nestedStatus(source[phase]); isFailedState(state) {
 				return state
 			}
 		}
 	}
+	for _, source := range sources {
+		if state := nestedStatus(source["video_status"]); state != "" {
+			return state
+		}
+	}
+	for _, phase := range []string{"publishing_phase", "processing_phase", "uploading_phase"} {
+		for _, source := range sources {
+			if state := nestedStatus(source[phase]); state != "" {
+				return state
+			}
+		}
+	}
+	for _, source := range sources {
+		if state, ok := source["status"].(string); ok {
+			return state
+		}
+	}
 	return ""
+}
+
+func nestedStatus(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case map[string]any:
+		if state, ok := typed["status"].(string); ok {
+			return state
+		}
+		if state, ok := typed["video_status"].(string); ok {
+			return state
+		}
+	}
+	return ""
+}
+
+func isFailedState(state string) bool {
+	switch strings.ToLower(state) {
+	case "error", "failed", "expired":
+		return true
+	default:
+		return false
+	}
 }
 
 func pageComments(options *globalOptions) *cobra.Command {

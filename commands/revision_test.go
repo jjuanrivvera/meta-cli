@@ -333,7 +333,7 @@ func TestPublishedPageReelReportsProcessingPartialFailure(t *testing.T) {
 		case request.URL.Path == "/video-upload/v26.0/video-1":
 			_, _ = io.WriteString(writer, `{"success":true}`)
 		case request.URL.Path == "/v26.0/video-1":
-			_, _ = io.WriteString(writer, `{"id":"video-1","status":{"processing_phase":{"status":"ERROR"}}}`)
+			_, _ = io.WriteString(writer, `{"id":"video-1","status":{"processing_phase":{"status":"COMPLETE"},"publishing_phase":{"status":"ERROR"}}}`)
 		default:
 			http.NotFound(writer, request)
 		}
@@ -344,6 +344,28 @@ func TestPublishedPageReelReportsProcessingPartialFailure(t *testing.T) {
 	assert.Equal(t, 2, ExitCode(err))
 	assert.Contains(t, test.output.String(), `"id": "video-1"`)
 	assert.Contains(t, test.output.String(), `"processing_status": "failed"`)
+}
+
+func TestPageReelStatusPrioritizesPublishingPhase(t *testing.T) {
+	tests := []struct {
+		name       string
+		publishing string
+		want       string
+	}{
+		{name: "publishing error dominates completed processing", publishing: "ERROR", want: "ERROR"},
+		{name: "publishing progress blocks premature success", publishing: "IN_PROGRESS", want: "IN_PROGRESS"},
+		{name: "publishing completion is terminal success", publishing: "COMPLETE", want: "COMPLETE"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			status := map[string]any{"status": map[string]any{
+				"uploading_phase":  map[string]any{"status": "COMPLETE"},
+				"processing_phase": map[string]any{"status": "COMPLETE"},
+				"publishing_phase": map[string]any{"status": test.publishing},
+			}}
+			assert.Equal(t, test.want, statusState(status))
+		})
+	}
 }
 
 func TestOutputFailuresCannotHideOrPrecedePublicationState(t *testing.T) {
