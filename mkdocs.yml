@@ -1,0 +1,42 @@
+site_name: metactl
+site_description: Meta Business Graph API from the command line
+site_url: https://jjuanrivvera.github.io/meta-cli/
+repo_url: https://github.com/jjuanrivvera/meta-cli
+repo_name: jjuanrivvera/meta-cli
+edit_uri: ""
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle: {icon: material/brightness-7, name: Switch to dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle: {icon: material/brightness-4, name: Switch to light mode}
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight: {anchor_linenums: true}
+
+nav:
+  - Home: index.md
+  - Workflows: workflows.md
+  - Live smoke test: live-smoke.md
+  - Command reference: commands/metactl.md
+
+plugins:
+  - search

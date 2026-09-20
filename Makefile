@@ -59,7 +59,7 @@ verify: check spec-check spec-completeness cover-check e2e
 accept: verify
 
 docs-gen:
-	go run ./tools/gendocs
+	go run -tags docsgen ./tools/gendocs
 docs-serve:
 	mkdocs serve
 docs-build:
@@ -74,4 +74,3 @@ clean:
 .PHONY: build install uninstall run dev format fmt vet lint security tidy test test-race \
 	test-coverage cover-check e2e docs-check check spec-check spec-completeness judge verify \
 	accept docs-gen docs-serve docs-build snapshot setup-hooks clean
-
