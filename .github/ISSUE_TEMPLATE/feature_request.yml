@@ -1,0 +1,17 @@
+name: Feature request
+description: Suggest a command or workflow improvement
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: Describe the problem and the Graph API surface involved.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed command
+      description: Include a sample invocation and expected output when possible.
+    validations:
+      required: true

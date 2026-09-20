@@ -16,7 +16,7 @@ check "guard" "test -f commands/agent.go && test -f commands/agent_hosts.go && t
 check "guard hook" "rg -q 'PreToolUse' commands/agent_hosts.go"
 check "no plain secret scanning" "! rg -q --glob '!**/*_test.go' 'fmt\\.Scan(ln|f)?\\(' ."
 check "request context propagation" "! rg -q --glob '!**/*_test.go' 'context\\.Background\\(' cmd commands internal"
-for command in auth config init doctor completion alias api version; do check "command $command" "bin/$binary $command --help"; done
+for command in auth config init doctor completion alias api version update; do check "command $command" "bin/$binary $command --help"; done
 for doc in README.md CHANGELOG.md SECURITY.md LICENSE DECISIONS.md AGENTS.md docs/live-smoke.md; do check "$doc" "test -f $doc"; done
 check "generated docs" "test -f docs/commands/metactl.md"
 check "installer" "test -f install.sh"
