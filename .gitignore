@@ -3,4 +3,6 @@ bin/
 dist/
 coverage.out
 site/
+.metactl-check.*/
+.tools/
 *.test

@@ -18,4 +18,4 @@ This file pins choices whose alternatives would otherwise make the command surfa
 14. **Distribution** → local commits only; prepare release and package configuration but do not create repositories, push, tag, or publish → the authorized scope is `+commit`.
 15. **Packaging add-on** → not applicable for this build → no separate editor plugin package was requested; the binary's MCP surface is the automation integration.
 16. **Toolchain** → declare Go 1.25 with the fleet's Go 1.25.12 toolchain → local newer Go may build it, while CI tests the declared fleet floor.
-
+17. **Acceptance rubric** → keep the five subjective checks deterministic and network-independent → the complete gate must be reproducible from a clean checkout without an external service.

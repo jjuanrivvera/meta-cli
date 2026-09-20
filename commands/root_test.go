@@ -2,9 +2,11 @@ package commands
 
 import (
 	"bytes"
+	"io"
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -55,4 +57,20 @@ func TestRootHelpAndFlags(t *testing.T) {
 
 func TestSplitComma(t *testing.T) {
 	assert.Equal(t, []string{"id", "name"}, splitComma("id, name,"))
+}
+
+func TestEveryCommandRendersHelp(t *testing.T) {
+	root := NewRootCmd(Dependencies{Out: io.Discard, Err: io.Discard, Store: &memoryStore{values: map[string]auth.Credential{}}, ConfigPath: filepath.Join(t.TempDir(), "config.yaml")})
+	var walk func(*cobra.Command)
+	walk = func(command *cobra.Command) {
+		t.Run(command.CommandPath(), func(t *testing.T) {
+			command.SetOut(io.Discard)
+			command.SetErr(io.Discard)
+			require.NoError(t, command.Help())
+		})
+		for _, child := range command.Commands() {
+			walk(child)
+		}
+	}
+	walk(root)
 }
