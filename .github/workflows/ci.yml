@@ -1,3 +1,5 @@
+# CI — delegates fleet-wide checks to the canonical reusable workflow.
+# Repo-specific acceptance gates stay here because they are not part of the shared surface.
 name: CI
 
 on:
@@ -10,18 +12,41 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  ci:
+    uses: jjuanrivvera/.github/.github/workflows/go-ci.yml@main
+    with:
+      coverage-threshold: "80"
+      # Command tests exercise internal packages through the fake Graph API.
+      coverpkg: true
+      run-gosec: true
+      run-docs-check: true
+      run-build: true
+
+  gates:
+    name: Acceptance gates (judge skipped)
     runs-on: ubuntu-latest
+    env:
+      # Hosted runners have no interactive agent binary. judge.sh logs the bypass visibly.
+      CLIWRIGHT_SKIP_JUDGE: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: true
-      - name: Install verification tools
+      - name: Install gate dependencies
         run: |
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0
-          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
-      - name: Verify
-        run: make verify
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ripgrep shellcheck
+      - run: make build
+      - name: Surface matches the manifest
+        run: ./scripts/spec-check.sh
+      - name: Manifest wraps the enumerated API
+        run: ./scripts/spec-completeness.sh api-manifest.json 90
+      - name: End-to-end tests
+        run: make e2e
+      - name: Definition of done
+        run: ./scripts/dod-check.sh meta
+      - name: Interactive judge intentionally skipped in CI
+        run: make judge
+      - name: Shell scripts
+        run: shellcheck install.sh scripts/*.sh

@@ -53,6 +53,9 @@ spec-completeness:
 	./scripts/spec-completeness.sh api-manifest.json $(API_COVERAGE_MIN)
 verify: check spec-check spec-completeness cover-check e2e
 	./scripts/dod-check.sh $(BINARY)
+	./scripts/judge.sh
+judge:
+	./scripts/judge.sh
 accept: verify
 
 docs-gen:
@@ -70,4 +73,4 @@ clean:
 
 .PHONY: build install uninstall run dev format fmt vet lint security tidy test test-race \
 	test-coverage cover-check e2e docs-check check spec-check spec-completeness verify \
-	accept docs-gen docs-serve docs-build snapshot setup-hooks clean
+	judge accept docs-gen docs-serve docs-build snapshot setup-hooks clean
