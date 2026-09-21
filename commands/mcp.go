@@ -162,15 +162,19 @@ func pathWithinRoot(root, selected string) (string, error) {
 	if selected == "-" {
 		return "", fmt.Errorf("MCP file input must be a regular file under META_MCP_ROOT")
 	}
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve MCP file root: %w", err)
+	}
 	absolute := selected
 	if !filepath.IsAbs(absolute) {
-		absolute = filepath.Join(root, absolute)
+		absolute = filepath.Join(canonicalRoot, absolute)
 	}
 	resolved, err := filepath.EvalSymlinks(absolute)
 	if err != nil {
 		return "", fmt.Errorf("resolve MCP file path: %w", err)
 	}
-	relative, err := filepath.Rel(root, resolved)
+	relative, err := filepath.Rel(canonicalRoot, resolved)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("MCP file path %q is outside META_MCP_ROOT", selected)
 	}

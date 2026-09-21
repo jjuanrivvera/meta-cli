@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/go-keyring"
+
+	"github.com/jjuanrivvera/meta-cli/internal/config"
 )
 
 func TestEncryptedFileStoreRoundTrip(t *testing.T) {
@@ -91,7 +93,9 @@ func TestDefaultFileStoreUsesConfigDirectory(t *testing.T) {
 
 	store := NewStore("")
 	require.NoError(t, store.Set("default", Credential{Token: "token-value"}))
-	credentialFile := filepath.Join(configRoot, "meta", encryptedFilename)
+	configPath, err := config.Path()
+	require.NoError(t, err)
+	credentialFile := filepath.Join(filepath.Dir(configPath), encryptedFilename)
 	info, err := os.Stat(credentialFile)
 	require.NoError(t, err)
 	if runtime.GOOS != "windows" {

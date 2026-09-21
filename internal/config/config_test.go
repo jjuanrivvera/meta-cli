@@ -33,7 +33,9 @@ func TestLoadMissingAndPath(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	path, err := Path()
 	require.NoError(t, err)
-	assert.Contains(t, path, filepath.Join("meta", "config.yaml"))
+	configDirectory, err := os.UserConfigDir()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(configDirectory, "meta", "config.yaml"), path)
 	value, err = Load("")
 	require.NoError(t, err)
 	assert.Empty(t, value.Accounts)
@@ -42,7 +44,9 @@ func TestLoadMissingAndPath(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	path, err = Path()
 	require.NoError(t, err)
-	assert.Contains(t, path, filepath.Join(".config", "meta", "config.yaml"))
+	configDirectory, err = os.UserConfigDir()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(configDirectory, "meta", "config.yaml"), path)
 }
 
 func TestValidationAndPrecedence(t *testing.T) {

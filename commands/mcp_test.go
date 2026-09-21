@@ -32,6 +32,8 @@ func TestMCPExcludesSetupCommands(t *testing.T) {
 
 func TestMCPFileConfinementRejectsEscapesAndSymlinks(t *testing.T) {
 	root := t.TempDir()
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	require.NoError(t, err)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("META_KEYRING_BACKEND", "file")
 	t.Setenv("META_KEYRING_PASSWORD", "test")
@@ -50,10 +52,11 @@ func TestMCPFileConfinementRejectsEscapesAndSymlinks(t *testing.T) {
 		received = input
 		return nil, ophis.ToolOutput{ExitCode: 0}, nil
 	}
-	_, _, err := confineMCPFiles(context.Background(), nil, ophis.ToolInput{Flags: map[string]any{"file": inside}}, next)
+	_, _, err = confineMCPFiles(context.Background(), nil, ophis.ToolInput{Flags: map[string]any{"file": inside}}, next)
 	require.NoError(t, err)
 	assert.True(t, called)
-	assert.Equal(t, inside, received.Flags["file"])
+	canonicalInside := filepath.Join(canonicalRoot, "inside.mp4")
+	assert.Equal(t, canonicalInside, received.Flags["file"])
 
 	workingDirectory := t.TempDir()
 	originalWorkingDirectory, err := os.Getwd()
@@ -62,14 +65,14 @@ func TestMCPFileConfinementRejectsEscapesAndSymlinks(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(originalWorkingDirectory) })
 	_, _, err = confineMCPFiles(context.Background(), nil, ophis.ToolInput{Flags: map[string]any{"file": "inside.mp4"}}, next)
 	require.NoError(t, err)
-	assert.Equal(t, inside, received.Flags["file"])
-	assert.Equal(t, root, received.Flags["mcp-root-internal"])
+	assert.Equal(t, canonicalInside, received.Flags["file"])
+	assert.Equal(t, canonicalRoot, received.Flags["mcp-root-internal"])
 
 	var output bytes.Buffer
 	cli := NewRootCmd(Dependencies{Out: &output, Err: &output, In: bytes.NewBuffer(nil), Store: &memoryStore{values: map[string]auth.Credential{}}, ConfigPath: filepath.Join(t.TempDir(), "config.yaml")})
-	cli.SetArgs([]string{"--mcp-root-internal", root, "--base-url", "http://127.0.0.1:1", "--upload-url", "http://127.0.0.1:1", "--dry-run", "instagram", "containers", "upload", "container-1", "--file", "inside.mp4"})
+	cli.SetArgs([]string{"--mcp-root-internal", canonicalRoot, "--base-url", "http://127.0.0.1:1", "--upload-url", "http://127.0.0.1:1", "--dry-run", "instagram", "containers", "upload", "container-1", "--file", "inside.mp4"})
 	require.NoError(t, cli.Execute())
-	assert.Contains(t, output.String(), "@"+inside)
+	assert.Contains(t, output.String(), "@"+canonicalInside)
 
 	for _, selected := range []string{outside, symlink, "-"} {
 		called = false
@@ -90,20 +93,22 @@ func TestMCPFileConfinementRejectsEscapesAndSymlinks(t *testing.T) {
 
 func TestMCPConfinedOpenRejectsFileReplacedAfterValidation(t *testing.T) {
 	root := t.TempDir()
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	require.NoError(t, err)
 	inside := filepath.Join(root, "inside.mp4")
 	require.NoError(t, os.WriteFile(inside, []byte("inside"), 0o600))
 	outside := filepath.Join(t.TempDir(), "outside.mp4")
 	require.NoError(t, os.WriteFile(outside, []byte("outside"), 0o600))
-	resolved, err := pathWithinRoot(root, inside)
+	resolved, err := pathWithinRoot(canonicalRoot, inside)
 	require.NoError(t, err)
-	directory, err := os.Open(root) // #nosec G304 -- test-owned temporary directory
+	directory, err := os.Open(canonicalRoot) // #nosec G304 -- test-owned temporary directory
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = directory.Close() })
 
 	require.NoError(t, os.Remove(inside))
 	require.NoError(t, os.Symlink(outside, inside))
 	ctx := context.WithValue(context.Background(), mcpConfinementContextKey{}, &mcpFileConfinement{
-		root: root, directory: directory,
+		root: canonicalRoot, directory: directory,
 	})
 	_, _, err = fileBody(ctx, resolved, 0, 0)
 	require.Error(t, err)
