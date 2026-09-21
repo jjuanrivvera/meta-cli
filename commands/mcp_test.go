@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -71,8 +72,12 @@ func TestMCPFileConfinementRejectsEscapesAndSymlinks(t *testing.T) {
 	var output bytes.Buffer
 	cli := NewRootCmd(Dependencies{Out: &output, Err: &output, In: bytes.NewBuffer(nil), Store: &memoryStore{values: map[string]auth.Credential{}}, ConfigPath: filepath.Join(t.TempDir(), "config.yaml")})
 	cli.SetArgs([]string{"--mcp-root-internal", canonicalRoot, "--base-url", "http://127.0.0.1:1", "--upload-url", "http://127.0.0.1:1", "--dry-run", "instagram", "containers", "upload", "container-1", "--file", "inside.mp4"})
-	require.NoError(t, cli.Execute())
-	assert.Contains(t, output.String(), "@"+canonicalInside)
+	if runtime.GOOS == "windows" {
+		assert.ErrorContains(t, cli.Execute(), "atomic MCP file confinement is unavailable")
+	} else {
+		require.NoError(t, cli.Execute())
+		assert.Contains(t, output.String(), "@"+canonicalInside)
+	}
 
 	for _, selected := range []string{outside, symlink, "-"} {
 		called = false
@@ -112,10 +117,19 @@ func TestMCPConfinedOpenRejectsFileReplacedAfterValidation(t *testing.T) {
 	})
 	_, _, err = fileBody(ctx, resolved, 0, 0)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "confined MCP file")
+	assertMCPConfinementError(t, err)
 	command := &cobra.Command{}
 	command.SetContext(ctx)
 	_, err = (&writeOptions{file: resolved}).body(command, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "confined MCP file")
+	assertMCPConfinementError(t, err)
+}
+
+func assertMCPConfinementError(t *testing.T, err error) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		assert.ErrorContains(t, err, "atomic MCP file confinement is unavailable")
+		return
+	}
+	assert.ErrorContains(t, err, "confined MCP file")
 }

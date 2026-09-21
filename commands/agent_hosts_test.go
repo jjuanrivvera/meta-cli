@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -67,7 +68,9 @@ func TestWriteGuardFilesNeverOverwrites(t *testing.T) {
 	require.NoError(t, writeGuardFiles(command, directory, files))
 	info, err := os.Stat(filepath.Join(directory, ".guard", "hook.sh"))
 	require.NoError(t, err)
-	assert.NotZero(t, info.Mode()&0o100)
+	if runtime.GOOS != "windows" {
+		assert.NotZero(t, info.Mode()&0o100)
+	}
 	assert.Error(t, writeGuardFiles(command, directory, files))
 }
 
