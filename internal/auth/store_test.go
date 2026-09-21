@@ -62,8 +62,9 @@ func TestStoreSelectionAndHelpers(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "nested", "config.yaml")
 	store := NewStore(configPath)
 	assert.Equal(t, "encrypted-file", store.Backend())
-	assert.Equal(t, filepath.Join(filepath.Dir(configPath), encryptedFilename), credentialPath(configPath))
-	assert.Equal(t, encryptedFilename, credentialPath(""))
+	path, err := credentialPath(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(filepath.Dir(configPath), encryptedFilename), path)
 	assert.Equal(t, "account-work", key("work"))
 
 	keyring := keyringStore{}
@@ -71,9 +72,33 @@ func TestStoreSelectionAndHelpers(t *testing.T) {
 	assert.Equal(t, "encrypted-file", NewFileStore("path", "password").Backend())
 
 	missing := NewFileStore(filepath.Join(t.TempDir(), "credentials.enc"), "password")
-	_, err := missing.Get("missing")
+	_, err = missing.Get("missing")
 	assert.ErrorIs(t, err, ErrNotFound)
 	assert.ErrorIs(t, missing.Delete("missing"), ErrNotFound)
+}
+
+func TestDefaultFileStoreUsesConfigDirectory(t *testing.T) {
+	configRoot := t.TempDir()
+	workingDirectory := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configRoot)
+	t.Setenv(backendEnv, "file")
+	t.Setenv(passwordEnv, "correct horse battery staple")
+
+	originalDirectory, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(workingDirectory))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(originalDirectory)) })
+
+	store := NewStore("")
+	require.NoError(t, store.Set("default", Credential{Token: "token-value"}))
+	credentialFile := filepath.Join(configRoot, "meta", encryptedFilename)
+	info, err := os.Stat(credentialFile)
+	require.NoError(t, err)
+	if runtime.GOOS != "windows" {
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	}
+	_, err = os.Stat(filepath.Join(workingDirectory, encryptedFilename))
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestOSKeyringBranches(t *testing.T) {

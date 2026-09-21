@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const maximumThrottleDelay = 5 * time.Minute
+
 type rateLimiter struct {
 	mu       sync.Mutex
 	base     time.Duration

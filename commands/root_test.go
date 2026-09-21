@@ -82,6 +82,16 @@ func TestSurfaceInspectionDoesNotReadCredentials(t *testing.T) {
 	assert.Zero(t, store.gets)
 }
 
+func TestCompletionDoesNotReadCredentials(t *testing.T) {
+	store := &memoryStore{values: map[string]auth.Credential{"default": {Token: "stored-token"}}}
+	var output bytes.Buffer
+	root := NewRootCmd(Dependencies{Out: &output, Err: &output, Store: store, ConfigPath: filepath.Join(t.TempDir(), "config.yaml")})
+	root.SetArgs([]string{"completion", "bash"})
+	require.NoError(t, root.Execute())
+	assert.NotEmpty(t, output.String())
+	assert.Zero(t, store.gets)
+}
+
 func TestSplitComma(t *testing.T) {
 	assert.Equal(t, []string{"id", "name"}, splitComma("id, name,"))
 }

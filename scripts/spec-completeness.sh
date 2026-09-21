@@ -1,23 +1,22 @@
 #!/usr/bin/env bash
-# spec-completeness.sh — the COMPLETENESS half of the spec gate (cliwright GOAL.md §0/§11).
+# spec-completeness.sh — the completeness half of the spec gate.
 #
 # spec-check.sh proves the CLI surface ⊆ the manifest (consistency): every command maps to a
 # declared resource/verb. It can NOT see what the manifest left out. This script proves the
 # other direction — manifest ≈ the FULL API (completeness): the manifest must derive from an
 # ENUMERATED method/endpoint list (OpenAPI/Postman/llms.txt, else the docs' full method index
-# or a community machine spec — §0), not model recall, and cover ≥ THRESHOLD% of it.
+# or a community machine spec), not model recall, and cover ≥ THRESHOLD% of it.
 #
-# Under-capture is otherwise invisible: a hand-curated manifest can wrap a third of an API and
-# still pass spec-check, because every command it does ship is consistent. That is exactly how
-# tgctl wrapped only ~⅓ of the Telegram Bot API. This gate makes the gap fail loudly.
+# Under-capture is otherwise invisible: a hand-curated manifest can omit most of an API and still
+# pass spec-check because every command it does ship is consistent. This gate makes the gap fail loudly.
 #
 # Copied into a generated CLI under scripts/.
 # Usage: ./scripts/spec-completeness.sh [api-manifest.json] [min-coverage-% (default 90)]
 set -uo pipefail
 MANIFEST="${1:-api-manifest.json}"
-THRESHOLD="${2:-${CLIWRIGHT_COVERAGE_MIN:-90}}"
+THRESHOLD="${2:-${META_CLI_API_COVERAGE_MIN:-90}}"
 
-[[ -f "$MANIFEST" ]] || { echo "✗ $MANIFEST missing — §11 requires a checked-in spec-derived manifest"; exit 1; }
+[[ -f "$MANIFEST" ]] || { echo "✗ $MANIFEST missing — a checked-in spec-derived manifest is required"; exit 1; }
 
 TOTAL="$(jq -r '.api_method_total // 0' "$MANIFEST")"
 SOURCE="$(jq -r '.api_method_source // ""' "$MANIFEST")"
@@ -27,7 +26,7 @@ SOURCE="$(jq -r '.api_method_source // ""' "$MANIFEST")"
 if ! [[ "$TOTAL" =~ ^[0-9]+$ ]] || [[ "$TOTAL" -le 0 ]] || [[ -z "$SOURCE" ]]; then
   cat >&2 <<'EOF'
 ✗ completeness: api_method_total / api_method_source missing from the manifest.
-  §0 REQUIRES enumerating the COMPLETE method/endpoint set from a source (OpenAPI / Postman /
+  Enumerate the complete method/endpoint set from a source (OpenAPI / Postman /
   llms.txt; else the docs' full method index or a community machine spec) BEFORE authoring the
   manifest. Record the enumerated total and where it came from:
       "api_method_total":  <enumerated total methods/endpoints in the full API>,
@@ -46,7 +45,7 @@ COVERED="$(jq -r '((.resources // [] | map(.verbs // [] | length) | add) // 0) +
 PCT=$(( COVERED * 100 / TOTAL ))
 
 # A materially-below-threshold manifest is allowed ONLY with an explicit, recorded waiver in
-# DECISIONS.md (§11 "pin every assumption") — so a deliberate "read surface first, writes in v2"
+# DECISIONS.md — so a deliberate "read surface first, writes in v2"
 # is a recorded decision the loop sees every pass, never a silent shrug.
 WAIVER_NOTE=""
 WAIVED=0

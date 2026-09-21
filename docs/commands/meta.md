@@ -33,7 +33,6 @@ meta manages Instagram publishing, Facebook Pages, and WhatsApp Business through
       --page-id string         Facebook Page id override
       --phone-id string        WhatsApp phone number id override
       --quiet                  suppress non-result messages
-      --show-token             show the access token in dry-run output
       --sort string            sort result rows by field
       --upload-url string      resumable upload base URL
   -v, --verbose                show request diagnostics

@@ -9,7 +9,8 @@ meta pages posts create [flags]
 ### Examples
 
 ```
-  meta pages posts create --message 'Coming soon' --published=false --scheduled-at 1789900000
+  SCHEDULED_AT=$(date -u -v+1H +%s 2>/dev/null || date -u -d '+1 hour' +%s)
+  meta pages posts create --message 'Coming soon' --published=false --scheduled-at "$SCHEDULED_AT"
 ```
 
 ### Options
@@ -43,7 +44,6 @@ meta pages posts create [flags]
       --page-id string         Facebook Page id override
       --phone-id string        WhatsApp phone number id override
       --quiet                  suppress non-result messages
-      --show-token             show the access token in dry-run output
       --sort string            sort result rows by field
       --upload-url string      resumable upload base URL
   -v, --verbose                show request diagnostics

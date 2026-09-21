@@ -10,8 +10,7 @@
     "https://developers.facebook.com/documentation/video-api/guides/publishing",
     "https://developers.facebook.com/documentation/video-api/guides/reels-publishing",
     "https://developers.facebook.com/docs/graph-api/reference/page/insights/",
-    "https://github.com/facebook/openapi/tree/main/business-messaging-api",
-    "../waba-cli/specs/enumeration.json (read-only docs-derived reference)"
+    "https://github.com/facebook/openapi/blob/main/business-messaging-api_v23.0.yaml"
   ],
   "operations": [
     {"id":"auth.debug","method":"GET","path":"/debug_token","kind":"read","status":"implemented"},
@@ -82,4 +81,3 @@
     {"id":"whatsapp.send.template","method":"POST","path":"/{phone-number-id}/messages","action":"type=template","kind":"write","status":"implemented"}
   ]
 }
-

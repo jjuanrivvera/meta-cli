@@ -20,10 +20,11 @@ for the container to finish before publishing and optionally creates the first c
 ## Schedule a Page post
 
 ```sh
+SCHEDULED_AT=$(date -u -v+1H +%s 2>/dev/null || date -u -d '+1 hour' +%s)
 meta pages posts create --account work \
   --message "Coming soon" \
   --published=false \
-  --scheduled-at 1789900000 \
+  --scheduled-at "$SCHEDULED_AT" \
   --dry-run
 ```
 
@@ -36,7 +37,7 @@ meta pages videos publish --account work \
   --file ./launch.mp4 \
   --title "Launch" \
   --description "Product walkthrough" \
-  --thumbnail ./thumbnail.jpg \
+  --thumbnail-file ./thumbnail.jpg \
   --dry-run
 ```
 

@@ -16,7 +16,7 @@ import (
 var mcpExcludedGroups = []string{"agent", "alias", "api", "auth", "completion", "config", "doctor", "init", "mcp", "update", "version"}
 
 var mcpExcludedFlags = []string{
-	"show-token", ProfileFlag, "profile", "base-url", "upload-url", "graph-version",
+	ProfileFlag, "profile", "base-url", "upload-url", "graph-version",
 	"page-id", "instagram-id", "business-id", "waba-id", "phone-id", "app-id",
 }
 

@@ -34,7 +34,6 @@ type globalOptions struct {
 	uploadURL    string
 	graphVersion string
 	dryRun       bool
-	showToken    bool
 	verbose      bool
 	noColor      bool
 	columns      string
@@ -109,7 +108,6 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 	flags.StringVar(&options.uploadURL, "upload-url", "", "resumable upload base URL")
 	flags.StringVar(&options.graphVersion, "graph-version", "", "Graph API version")
 	flags.BoolVar(&options.dryRun, "dry-run", false, "print equivalent curl requests without sending them")
-	flags.BoolVar(&options.showToken, "show-token", false, "show the access token in dry-run output")
 	flags.BoolVarP(&options.verbose, "verbose", "v", false, "show request diagnostics")
 	flags.BoolVar(&options.noColor, "no-color", false, "disable terminal color")
 	flags.StringVar(&options.columns, "columns", "", "comma-separated table or CSV columns")
@@ -139,7 +137,11 @@ func skipsCredentialPreflight(command *cobra.Command) bool {
 	for top.Parent() != nil && top.Parent() != command.Root() {
 		top = top.Parent()
 	}
-	return top.Name() == "__surface" || top.Name() == "mcp"
+	credentialFree := map[string]bool{
+		"__surface": true, "agent": true, "alias": true, "completion": true,
+		"config": true, "init": true, "mcp": true, "update": true, "version": true,
+	}
+	return credentialFree[top.Name()]
 }
 
 func (options *globalOptions) prepareRedactions() {
@@ -203,7 +205,6 @@ func (options *globalOptions) clientForCommand(command *cobra.Command) (*api.Cli
 	client, err := api.New(api.Options{
 		BaseURL: account.BaseURL, UploadURL: account.UploadURL, Version: account.GraphVersion,
 		Token: token, AppSecret: credential.AppSecret, DryRun: options.dryRun,
-		ShowToken: options.showToken, AlwaysRedactToken: pageOperation,
 		Redactions: options.redactions,
 		Verbose:    options.verbose, Writer: options.deps.Err, Diagnostics: options.deps.Err,
 		HTTPClient: options.deps.HTTPClient,

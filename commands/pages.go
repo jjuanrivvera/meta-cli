@@ -52,7 +52,7 @@ func pagePosts(options *globalOptions) *cobra.Command {
 	var scheduled int64
 	create := operationSpec{
 		Use: "create", Short: "Create or schedule a Page feed post", Kind: kindWrite,
-		Example: "  meta pages posts create --message 'Coming soon' --published=false --scheduled-at 1789900000",
+		Example: "  SCHEDULED_AT=$(date -u -v+1H +%s 2>/dev/null || date -u -d '+1 hour' +%s)\n  meta pages posts create --message 'Coming soon' --published=false --scheduled-at \"$SCHEDULED_AT\"",
 		Flags: func(command *cobra.Command) {
 			command.Flags().StringVar(&message, "message", "", "post message")
 			command.Flags().StringVar(&link, "link", "", "link URL")
@@ -157,7 +157,7 @@ func pageVideos(options *globalOptions) *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		return client.Write(command.Context(), pageID+"/videos", url.Values{"upload_phase": {"start"}, "file_size": {strconv.FormatInt(fileSize, 10)}}, nil)
+		return client.WriteVideo(command.Context(), pageID+"/videos", url.Values{"upload_phase": {"start"}, "file_size": {strconv.FormatInt(fileSize, 10)}}, nil)
 	}}
 	var uploadPath, startOffset string
 	upload := operationSpec{Use: "upload SESSION_ID", Short: "Upload an idempotent video chunk", Kind: kindWrite, Args: cobra.ExactArgs(1), Flags: func(command *cobra.Command) {
@@ -192,7 +192,7 @@ func pageVideos(options *globalOptions) *cobra.Command {
 			query.Set("published", "false")
 			query.Set("scheduled_publish_time", strconv.FormatInt(scheduledAt, 10))
 		}
-		return client.Write(command.Context(), pageID+"/videos", query, nil)
+		return client.WriteVideo(command.Context(), pageID+"/videos", query, nil)
 	}}
 	var thumbnailFile, thumbnailType string
 	var preferred bool
@@ -241,7 +241,7 @@ func uploadPageVideoRange(command *cobra.Command, client *api.Client, pageID, se
 	return uploadResponse(command, client, api.Request{
 		Method: http.MethodPost, Path: pageID + "/videos", Query: query,
 		BodyFactory: bodyFactory, MultipartForm: multipartDryRun(filePath, "video_file_chunk", "application/octet-stream", nil, sourceOffset, length),
-		Headers: http.Header{"Content-Type": {contentType}}, Idempotent: true, LongRunning: true,
+		Headers: http.Header{"Content-Type": {contentType}}, Idempotent: true, LongRunning: true, VideoAPI: true,
 	})
 }
 
@@ -254,7 +254,7 @@ func publishPageVideo(command *cobra.Command, options *globalOptions, client *ap
 	if err != nil {
 		return nil, fmt.Errorf("stat video: %w", err)
 	}
-	started, err := client.Write(command.Context(), pageID+"/videos", url.Values{"upload_phase": {"start"}, "file_size": {strconv.FormatInt(info.Size(), 10)}}, nil)
+	started, err := client.WriteVideo(command.Context(), pageID+"/videos", url.Values{"upload_phase": {"start"}, "file_size": {strconv.FormatInt(info.Size(), 10)}}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func publishPageVideo(command *cobra.Command, options *globalOptions, client *ap
 		query.Set("published", "false")
 		query.Set("scheduled_publish_time", strconv.FormatInt(scheduledAt, 10))
 	}
-	finished, err := client.Write(command.Context(), pageID+"/videos", query, nil)
+	finished, err := client.WriteVideo(command.Context(), pageID+"/videos", query, nil)
 	if err != nil {
 		return nil, err
 	}

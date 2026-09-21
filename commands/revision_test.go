@@ -39,17 +39,30 @@ func TestPageCredentialFlowAndSecretRedaction(t *testing.T) {
 		}
 	})
 
-	require.NoError(t, test.run("--base-url", serverURL, "--page-id", "page-1", "--show-token", "auth", "pages", "--save", "-o", "json"))
+	require.NoError(t, test.run("--base-url", serverURL, "--page-id", "page-1", "auth", "pages", "--save", "-o", "json"))
 	assert.Equal(t, "page-secret-token", test.store.values["default"].PageToken)
 	assert.NotContains(t, test.output.String(), "page-secret-token")
 
-	require.NoError(t, test.run("--base-url", serverURL, "--page-id", "page-1", "--show-token", "pages", "posts", "list", "-o", "json"))
+	require.NoError(t, test.run("--base-url", serverURL, "--page-id", "page-1", "pages", "posts", "list", "-o", "json"))
 	assert.Equal(t, 1, pageCalls)
 	assert.NotContains(t, test.output.String(), "page-secret-token")
 
-	require.NoError(t, test.run("--base-url", serverURL, "--app-id", "app-1", "--dry-run", "--show-token", "auth", "exchange", "-o", "json"))
+	require.NoError(t, test.run("--base-url", serverURL, "--app-id", "app-1", "--dry-run", "auth", "exchange", "-o", "json"))
 	assert.NotContains(t, test.output.String(), "test-secret")
 	assert.NotContains(t, test.output.String(), "client_secret=test-secret")
+}
+
+func TestShowTokenEscapeHatchIsNotAvailable(t *testing.T) {
+	test, _ := newCommandTest(t, func(http.ResponseWriter, *http.Request) {})
+	err := test.run("auth", "status", "--show-token")
+	require.ErrorContains(t, err, "unknown flag: --show-token")
+	assert.NotContains(t, test.output.String(), "test-token")
+}
+
+func TestPageVideoCommandsUseDedicatedVideoHost(t *testing.T) {
+	test, _ := newCommandTest(t, func(http.ResponseWriter, *http.Request) {})
+	require.NoError(t, test.run("--page-id", "page-1", "--dry-run", "pages", "videos", "start", "--file-size", "8"))
+	assert.Contains(t, test.output.String(), "https://graph-video.facebook.com/v26.0/page-1/videos")
 }
 
 func TestPageAccountDiscoveryRedactsNewTokensFromOrdinaryFields(t *testing.T) {
@@ -76,7 +89,7 @@ func TestDebugTokenUsesDocumentedAuthenticationShape(t *testing.T) {
 	require.NoError(t, test.run("--base-url", serverURL, "--app-id", "app-1", "auth", "debug", "-o", "json"))
 }
 
-func TestPublishedReelReportsFirstCommentPartialFailure(t *testing.T) {
+func TestPublishedInstagramReelReportsFirstCommentFailure(t *testing.T) {
 	videoPath := filepath.Join(t.TempDir(), "reel.mp4")
 	require.NoError(t, os.WriteFile(videoPath, []byte("abcdefgh"), 0o600))
 	test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) {
@@ -115,7 +128,7 @@ func TestPublishedReelReportsFirstCommentPartialFailure(t *testing.T) {
 	assert.NotContains(t, test.output.String(), "test-secret")
 }
 
-func TestInstagramUploadResumesFromReportedOffset(t *testing.T) {
+func TestInstagramUploadResumesAtServerOffset(t *testing.T) {
 	filePath := filepath.Join(t.TempDir(), "reel.mp4")
 	require.NoError(t, os.WriteFile(filePath, []byte("abcdefgh"), 0o600))
 	var uploads int
@@ -189,7 +202,7 @@ func TestPageReelUploadResumesFromReportedOffset(t *testing.T) {
 	assert.Equal(t, 2, uploads)
 }
 
-func TestPageVideoUsesServerChunkOffsetsAndMultipartThumbnail(t *testing.T) {
+func TestPageVideoUploadUsesServerDirectedChunks(t *testing.T) {
 	videoPath := filepath.Join(t.TempDir(), "video.mp4")
 	thumbnailPath := filepath.Join(t.TempDir(), "thumbnail.jpg")
 	require.NoError(t, os.WriteFile(videoPath, []byte("abcdefgh"), 0o600))
@@ -544,7 +557,7 @@ func TestDryRunKeepsMachineOutputSeparateFromCurl(t *testing.T) {
 	assert.Contains(t, stderr.String(), "curl -X")
 }
 
-func TestDryRunRedactsCredentialsEmbeddedInOrdinaryValues(t *testing.T) {
+func TestSecretsNeverReachDryRunRenderedOrErrorOutput(t *testing.T) {
 	test, _ := newCommandTest(t, func(http.ResponseWriter, *http.Request) {})
 	credential := test.store.values["default"]
 	credential.PageToken = "page-secret-token"

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jjuanrivvera/meta-cli/internal/config"
 	"github.com/zalando/go-keyring"
 )
 
@@ -89,11 +90,13 @@ func key(account string) string { return "account-" + account }
 type fileStore struct {
 	path     string
 	password string
+	pathErr  error
 }
 
 func NewStore(configPath string) Store {
 	if strings.EqualFold(os.Getenv(backendEnv), "file") {
-		return &fileStore{path: credentialPath(configPath), password: os.Getenv(passwordEnv)}
+		path, err := credentialPath(configPath)
+		return &fileStore{path: path, password: os.Getenv(passwordEnv), pathErr: err}
 	}
 	return keyringStore{}
 }
@@ -139,6 +142,9 @@ func (store *fileStore) Delete(account string) error {
 }
 
 func (store *fileStore) load() (map[string]Credential, error) {
+	if store.pathErr != nil {
+		return nil, store.pathErr
+	}
 	if store.password == "" {
 		return nil, fmt.Errorf("%s is required for the encrypted credential store", passwordEnv)
 	}
@@ -161,6 +167,9 @@ func (store *fileStore) load() (map[string]Credential, error) {
 }
 
 func (store *fileStore) save(values map[string]Credential) error {
+	if store.pathErr != nil {
+		return store.pathErr
+	}
 	if store.password == "" {
 		return fmt.Errorf("%s is required for the encrypted credential store", passwordEnv)
 	}
@@ -249,9 +258,13 @@ func decrypt(raw []byte, password string) ([]byte, error) {
 	return plain, nil
 }
 
-func credentialPath(configPath string) string {
+func credentialPath(configPath string) (string, error) {
 	if configPath == "" {
-		return encryptedFilename
+		var err error
+		configPath, err = config.Path()
+		if err != nil {
+			return "", err
+		}
 	}
-	return filepath.Join(filepath.Dir(configPath), encryptedFilename)
+	return filepath.Join(filepath.Dir(configPath), encryptedFilename), nil
 }

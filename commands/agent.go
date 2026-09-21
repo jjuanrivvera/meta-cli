@@ -24,7 +24,7 @@ type guardCommand struct {
 	Kind string `json:"kind" yaml:"kind"`
 }
 
-var guardLocalGroups = map[string]bool{"agent": true, "alias": true, "auth": true, "completion": true, "config": true, "doctor": true, "init": true, "mcp": true, "update": true, "version": true}
+var guardLocalGroups = map[string]bool{"__surface": true, "agent": true, "alias": true, "auth": true, "completion": true, "config": true, "doctor": true, "help": true, "init": true, "mcp": true, "update": true, "version": true}
 
 var alwaysIrreversible = map[string]bool{"delete": true, "remove": true, "unsubscribe": true, "logout": true}
 

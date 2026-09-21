@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dod-check.sh — deterministic Definition-of-Done checks (cliwright GOAL.md §9/§12).
+# dod-check.sh — deterministic Definition-of-Done checks.
 # One concrete check per atomic criterion. Copied into a generated CLI under scripts/.
 # Usage: ./scripts/dod-check.sh <binary-name>
 set -uo pipefail
@@ -22,7 +22,7 @@ have "guard hook path-prefix hardening"  "rg -Fq '([^[:space:]]*/)?' commands/ag
 guard_flattening_present() { rg -Fq "tr '\\\\n{}:,'" commands/agent_hosts.go; }
 have "guard no-jq JSON flattening"       "guard_flattening_present"
 
-# MCP tool annotations (GOAL.md §3b). Deliberately a RUNTIME check: a grep for
+# MCP tool annotations. Deliberately a RUNTIME check: a grep for
 # "annotate" passes on a CLI that tags every command under its own key names and
 # still exports annotations:null, because ophis only reads the singular MCP hint
 # keys (readOnlyHint, …). Hosts running a read-only session drop a server with no

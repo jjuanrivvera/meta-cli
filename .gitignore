@@ -2,6 +2,8 @@
 bin/
 dist/
 coverage.out
+credentials.enc
+mcp-tools.json
 site/
 .meta-completeness.*/
 .meta-mcp-check.*/

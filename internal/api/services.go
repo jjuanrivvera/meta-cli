@@ -18,6 +18,10 @@ func (client *Client) Write(ctx context.Context, requestPath string, query url.V
 	return client.operation(ctx, Request{Method: http.MethodPost, Path: requestPath, Query: query, Body: body})
 }
 
+func (client *Client) WriteVideo(ctx context.Context, requestPath string, query url.Values, body []byte) (any, error) {
+	return client.operation(ctx, Request{Method: http.MethodPost, Path: requestPath, Query: query, Body: body, VideoAPI: true})
+}
+
 func (client *Client) Remove(ctx context.Context, requestPath string, query url.Values) (any, error) {
 	return client.operation(ctx, Request{Method: http.MethodDelete, Path: requestPath, Query: query})
 }

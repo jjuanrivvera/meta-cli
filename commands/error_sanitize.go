@@ -10,6 +10,8 @@ import (
 	"github.com/jjuanrivvera/meta-cli/internal/config"
 )
 
+const minimumCredentialRedactionLength = 8
+
 type credentialWriter struct {
 	writer  io.Writer
 	secrets func() []string
@@ -45,7 +47,7 @@ func redactCommandError(err error, secrets []string) error {
 
 func redactCommandText(message string, secrets []string) string {
 	for _, secret := range secrets {
-		if secret == "" {
+		if len(secret) < minimumCredentialRedactionLength {
 			continue
 		}
 		message = strings.ReplaceAll(message, secret, "<redacted>")

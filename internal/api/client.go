@@ -21,46 +21,47 @@ import (
 
 const defaultBaseURL = "https://graph.facebook.com"
 
+const (
+	maximumPaginationPages = 1000
+	minimumSecretLength    = 8
+)
+
 type Options struct {
-	BaseURL           string
-	UploadURL         string
-	Version           string
-	Token             string
-	AppSecret         string
-	DryRun            bool
-	ShowToken         bool
-	AlwaysRedactToken bool
-	Redactions        []string
-	Verbose           bool
-	Writer            io.Writer
-	Diagnostics       io.Writer
-	HTTPClient        *http.Client
-	MaxRetries        int
-	RequestsPS        float64
-	Sleep             func(time.Duration)
-	Jitter            func(time.Duration) time.Duration
-	Now               func() time.Time
+	BaseURL     string
+	UploadURL   string
+	Version     string
+	Token       string
+	AppSecret   string
+	DryRun      bool
+	Redactions  []string
+	Verbose     bool
+	Writer      io.Writer
+	Diagnostics io.Writer
+	HTTPClient  *http.Client
+	MaxRetries  int
+	RequestsPS  float64
+	Sleep       func(time.Duration)
+	Jitter      func(time.Duration) time.Duration
+	Now         func() time.Time
 }
 
 type Client struct {
-	baseURL           *url.URL
-	uploadURL         *url.URL
-	version           string
-	token             string
-	appSecret         string
-	dryRun            bool
-	showToken         bool
-	alwaysRedactToken bool
-	redactions        []string
-	verbose           bool
-	writer            io.Writer
-	diagnostics       io.Writer
-	httpClient        *http.Client
-	maxRetries        int
-	limiter           *rateLimiter
-	wait              func(context.Context, time.Duration) error
-	jitter            func(time.Duration) time.Duration
-	now               func() time.Time
+	baseURL     *url.URL
+	uploadURL   *url.URL
+	version     string
+	token       string
+	appSecret   string
+	dryRun      bool
+	redactions  []string
+	verbose     bool
+	writer      io.Writer
+	diagnostics io.Writer
+	httpClient  *http.Client
+	maxRetries  int
+	limiter     *rateLimiter
+	wait        func(context.Context, time.Duration) error
+	jitter      func(time.Duration) time.Duration
+	now         func() time.Time
 }
 
 type Request struct {
@@ -75,6 +76,7 @@ type Request struct {
 	Headers            http.Header
 	Idempotent         bool
 	Upload             bool
+	VideoAPI           bool
 	LongRunning        bool
 	SkipAuthorization  bool
 	SkipAppSecretProof bool
@@ -149,8 +151,7 @@ func New(options Options) (*Client, error) {
 	}
 	return &Client{
 		baseURL: baseURL, uploadURL: uploadURL, version: options.Version, token: options.Token,
-		appSecret: options.AppSecret, dryRun: options.DryRun, showToken: options.ShowToken,
-		alwaysRedactToken: options.AlwaysRedactToken, verbose: options.Verbose,
+		appSecret: options.AppSecret, dryRun: options.DryRun, verbose: options.Verbose,
 		redactions: append([]string(nil), options.Redactions...),
 		writer:     options.Writer, diagnostics: options.Diagnostics,
 		httpClient: options.HTTPClient, maxRetries: options.MaxRetries,
@@ -182,7 +183,7 @@ func (client *Client) Do(ctx context.Context, spec Request) (*Response, error) {
 	if spec.Method == "" {
 		spec.Method = http.MethodGet
 	}
-	requestURL := client.resolveURL(spec.Path, spec.Upload)
+	requestURL := client.resolveURL(spec.Path, spec.Upload, spec.VideoAPI)
 	query := cloneValues(spec.Query)
 	if !spec.SkipAppSecretProof && client.appSecret != "" && client.token != "" {
 		query.Set("appsecret_proof", appSecretProof(client.token, client.appSecret))
@@ -269,6 +270,17 @@ func (client *Client) Do(ctx context.Context, spec Request) (*Response, error) {
 			if !ok {
 				delay = client.jitter(time.Second << attempt)
 			}
+			if throttled {
+				requested := delay
+				if delay > maximumThrottleDelay {
+					delay = maximumThrottleDelay
+				}
+				if requested != delay {
+					fmt.Fprintf(client.diagnostics, "rate limited; retrying in %s (server requested %s; capped at %s)\n", delay, requested, maximumThrottleDelay)
+				} else {
+					fmt.Fprintf(client.diagnostics, "rate limited; retrying in %s\n", delay)
+				}
+			}
 			if waitErr := client.wait(ctx, delay); waitErr != nil {
 				return nil, waitErr
 			}
@@ -324,7 +336,8 @@ func (client *Client) List(ctx context.Context, requestPath string, query url.Va
 		query.Set("limit", strconv.Itoa(limit))
 	}
 	var result []any
-	for {
+	seenCursors := make(map[string]struct{})
+	for page := 1; page <= maximumPaginationPages; page++ {
 		response, err := client.Do(ctx, Request{Method: http.MethodGet, Path: requestPath, Query: query})
 		if err != nil {
 			return nil, err
@@ -337,16 +350,24 @@ func (client *Client) List(ctx context.Context, requestPath string, query url.Va
 		if !all || after == "" {
 			return result, nil
 		}
+		if _, duplicate := seenCursors[after]; duplicate {
+			return nil, fmt.Errorf("pagination cursor repeated after page %d", page)
+		}
+		seenCursors[after] = struct{}{}
 		query.Set("after", after)
 	}
+	return nil, fmt.Errorf("pagination exceeded %d pages", maximumPaginationPages)
 }
 
-func (client *Client) resolveURL(requestPath string, upload bool) *url.URL {
+func (client *Client) resolveURL(requestPath string, upload, videoAPI bool) *url.URL {
 	base := client.baseURL
 	if upload {
 		base = client.uploadURL
 	}
 	copyURL := *base
+	if videoAPI && copyURL.Host == "graph.facebook.com" {
+		copyURL.Host = "graph-video.facebook.com"
+	}
 	clean := strings.TrimPrefix(requestPath, "/")
 	copyURL.Path = path.Join(copyURL.Path, client.version, clean)
 	if upload && strings.HasPrefix(clean, "ig-api-upload/") {
@@ -360,10 +381,6 @@ func (client *Client) resolveURL(requestPath string, upload bool) *url.URL {
 
 func (client *Client) curl(spec Request, requestURL *url.URL) string {
 	token := "<redacted>"
-	showToken := client.showToken && !client.alwaysRedactToken
-	if showToken {
-		token = client.token
-	}
 	displayURL := *requestURL
 	query := displayURL.Query()
 	secrets := client.credentialValues(query)
@@ -371,9 +388,6 @@ func (client *Client) curl(spec Request, requestURL *url.URL) string {
 	displayURL.RawPath = ""
 	for key, values := range query {
 		if sensitiveName(key) {
-			if showToken && key == "input_token" {
-				continue
-			}
 			query.Set(key, "<redacted>")
 			continue
 		}
@@ -420,8 +434,8 @@ func (client *Client) curl(spec Request, requestURL *url.URL) string {
 		contentType := redactKnownSecrets(form.ContentType, secrets)
 		fileSource := "@" + filePath
 		if form.Length > 0 {
-			prefix = "dd if=" + shellQuote(filePath) + " bs=1 skip=" + strconv.FormatInt(form.Offset, 10) +
-				" count=" + strconv.FormatInt(form.Length, 10) + " 2>/dev/null | "
+			prefix = "tail -c +" + strconv.FormatInt(form.Offset+1, 10) + " " + shellQuote(filePath) +
+				" | head -c " + strconv.FormatInt(form.Length, 10) + " | "
 			fileSource = "@-;filename=" + path.Base(filePath)
 		}
 		if contentType != "" {
@@ -456,7 +470,7 @@ func redactCredentialValues(body []byte, secrets []string) []byte {
 	if json.Unmarshal(body, &value) == nil {
 		if text, ok := value.(string); ok {
 			for _, secret := range secrets {
-				if secret != "" {
+				if len(secret) >= minimumSecretLength {
 					text = strings.ReplaceAll(text, secret, "<redacted>")
 				}
 			}
@@ -470,7 +484,7 @@ func redactCredentialValues(body []byte, secrets []string) []byte {
 	}
 	text := string(body)
 	for _, secret := range secrets {
-		if secret != "" {
+		if len(secret) >= minimumSecretLength {
 			text = strings.ReplaceAll(text, secret, "<redacted>")
 		}
 	}
@@ -482,9 +496,12 @@ func redactStrings(value any, secrets []string) {
 	case map[string]any:
 		for key, child := range typed {
 			redactedKey := redactKnownSecrets(key, secrets)
+			if sensitiveName(key) {
+				child = "<redacted>"
+			}
 			if text, ok := child.(string); ok {
 				for _, secret := range secrets {
-					if secret != "" {
+					if len(secret) >= minimumSecretLength {
 						text = strings.ReplaceAll(text, secret, "<redacted>")
 					}
 				}
@@ -504,7 +521,7 @@ func redactStrings(value any, secrets []string) {
 		for index, child := range typed {
 			if text, ok := child.(string); ok {
 				for _, secret := range secrets {
-					if secret != "" {
+					if len(secret) >= minimumSecretLength {
 						text = strings.ReplaceAll(text, secret, "<redacted>")
 					}
 				}
@@ -587,7 +604,7 @@ func redactValue(value any, secrets []string) any {
 
 func redactKnownSecrets(value string, secrets []string) string {
 	for _, secret := range secrets {
-		if secret != "" {
+		if len(secret) >= minimumSecretLength {
 			value = strings.ReplaceAll(value, secret, "<redacted>")
 		}
 	}

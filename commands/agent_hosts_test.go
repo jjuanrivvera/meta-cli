@@ -28,6 +28,9 @@ func TestClassifyCommandsAndAliases(t *testing.T) {
 	assert.Equal(t, guardIrreversible, kinds["pages post delete"])
 	assert.Equal(t, guardIrreversible, kinds["wa templates delete"])
 	assert.Equal(t, guardDynamic, kinds["api"])
+	assert.NotContains(t, kinds, "__surface list")
+	assert.NotContains(t, kinds, "__surface resolve")
+	assert.NotContains(t, kinds, "help")
 }
 
 func TestHostConfigSchemas(t *testing.T) {

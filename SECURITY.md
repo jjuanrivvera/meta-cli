@@ -18,7 +18,8 @@ mitigation. You should receive an acknowledgement within seven days.
 `meta` stores access tokens and app secrets in the operating-system keyring. The optional
 headless fallback is encrypted with AES-GCM and a password-derived key. Configuration files contain
 only non-secret account metadata. Dry runs always redact app secrets and Page access tokens.
-User-token display still requires the explicit `--show-token` escape hatch. App secrets are
-accepted only through a hidden prompt or `META_APP_SECRET`, and secret flags are not exported
-as MCP tool inputs. MCP file inputs are confined to `META_MCP_ROOT` (or the server working
-directory) after symlink resolution.
+User tokens are also always redacted; there is no token-display escape hatch. The encrypted-file
+backend writes `credentials.enc` with `0600` permissions beside the active configuration file,
+never in the process working directory. App secrets are accepted only through a hidden prompt or
+`META_APP_SECRET`, and secret flags are not exported as MCP tool inputs. MCP file inputs are
+confined to `META_MCP_ROOT` (or the server working directory) after symlink resolution.

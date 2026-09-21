@@ -58,7 +58,10 @@ meta whatsapp templates create --account "$META_ACCOUNT" \
 ```
 
 Only after inspecting those requests, rerun without `--dry-run` and capture each returned ID.
-Verify the created object, then delete only that same disposable object:
+Publishing an Instagram reel is irreversible through the Graph API: there is no media-delete
+endpoint, so the disposable reel will remain on the account unless it is removed manually in an
+Instagram client. The comment can be deleted through Graph. Verify the created objects, then
+delete only the disposable objects for which a delete command exists:
 
 ```sh
 meta pages posts get DISPOSABLE_POST_ID --account "$META_ACCOUNT" -o json
@@ -69,6 +72,10 @@ meta whatsapp templates get DISPOSABLE_TEMPLATE_ID --account "$META_ACCOUNT" -o 
 meta whatsapp templates delete --name DISPOSABLE_TEMPLATE_NAME \
   --id DISPOSABLE_TEMPLATE_ID --account "$META_ACCOUNT"
 ```
+
+If a publish command exits with status `2`, the primary object was created but a follow-up action
+failed. Preserve the returned object ID and do not rerun the publish command; retry or clean up
+only the named follow-up action.
 
 Do not delete pre-existing content. Finish by removing the local credential:
 

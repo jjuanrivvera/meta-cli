@@ -19,8 +19,10 @@ Use the [command reference](commands/meta.md) for every command and flag. The
 ## Safety defaults
 
 - Credentials are stored in a keyring, never in the YAML configuration.
-- Dry-run output redacts access tokens unless `--show-token` is explicitly set.
+- Dry-run output always redacts access tokens and app secrets.
 - Retries are limited to idempotent calls and resumable upload chunks.
+- Exit code 2 means publishing succeeded but a follow-up failed; automation must preserve the
+  returned object ID and must not retry the publish.
 - Pagination follows cursor values through the configured host instead of trusting absolute links.
 - Destructive commands are distinctly annotated for automation policy generation.
 

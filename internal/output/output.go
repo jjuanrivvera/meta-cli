@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	FormatTable = "table"
-	FormatJSON  = "json"
-	FormatYAML  = "yaml"
-	FormatCSV   = "csv"
-	FormatID    = "id"
+	FormatTable         = "table"
+	FormatJSON          = "json"
+	FormatYAML          = "yaml"
+	FormatCSV           = "csv"
+	FormatID            = "id"
+	minimumSecretLength = 8
 )
 
 type Options struct {
@@ -123,7 +124,7 @@ func collectSensitiveValues(value any) []string {
 	collectStrings = func(current any) {
 		switch typed := current.(type) {
 		case string:
-			if typed != "" {
+			if len(typed) >= minimumSecretLength {
 				secrets = append(secrets, typed)
 			}
 		case []any:
@@ -182,30 +183,36 @@ func redact(value any, secrets []string) any {
 }
 
 func redactString(value string, secrets []string) string {
-	for _, secret := range secrets {
-		if secret != "" {
-			value = strings.ReplaceAll(value, secret, "<redacted>")
-		}
-	}
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return redactKnownValue(value, secrets)
+	}
+	value = redactKnownValue(value, secrets)
+	if parsed.RawQuery == "" {
 		return value
 	}
-	parsed.Path = redactKnownValue(parsed.Path, secrets)
-	parsed.RawPath = ""
-	query := parsed.Query()
-	for key := range query {
-		if sensitiveName(key) {
-			query.Set(key, "<redacted>")
+	queryStart := strings.IndexByte(value, '?')
+	if queryStart < 0 {
+		return value
+	}
+	queryEnd := len(value)
+	if fragmentStart := strings.IndexByte(value[queryStart+1:], '#'); fragmentStart >= 0 {
+		queryEnd = queryStart + 1 + fragmentStart
+	}
+	parts := strings.Split(value[queryStart+1:queryEnd], "&")
+	for index, part := range parts {
+		key, _, _ := strings.Cut(part, "=")
+		decodedKey, decodeErr := url.QueryUnescape(key)
+		if decodeErr == nil && sensitiveName(decodedKey) {
+			parts[index] = key + "=" + url.QueryEscape("<redacted>")
 		}
 	}
-	parsed.RawQuery = query.Encode()
-	return parsed.String()
+	return value[:queryStart+1] + strings.Join(parts, "&") + value[queryEnd:]
 }
 
 func redactKnownValue(value string, secrets []string) string {
 	for _, secret := range secrets {
-		if secret != "" {
+		if len(secret) >= minimumSecretLength {
 			value = strings.ReplaceAll(value, secret, "<redacted>")
 		}
 	}

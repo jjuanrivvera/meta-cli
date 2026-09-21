@@ -62,7 +62,7 @@ func newAuthLoginCmd(options *globalOptions) *cobra.Command {
 				token, credential.Token, credential.PageToken, appSecret, credential.AppSecret,
 				os.Getenv("META_TOKEN"), os.Getenv("META_PAGE_TOKEN"), os.Getenv("META_APP_SECRET"),
 			}
-			client, err := api.New(api.Options{BaseURL: account.BaseURL, UploadURL: account.UploadURL, Version: account.GraphVersion, Token: token, AppSecret: appSecret, DryRun: options.dryRun, ShowToken: options.showToken, Redactions: options.redactions, Writer: options.deps.Err, Diagnostics: options.deps.Err, Verbose: options.verbose, HTTPClient: options.deps.HTTPClient})
+			client, err := api.New(api.Options{BaseURL: account.BaseURL, UploadURL: account.UploadURL, Version: account.GraphVersion, Token: token, AppSecret: appSecret, DryRun: options.dryRun, Redactions: options.redactions, Writer: options.deps.Err, Diagnostics: options.deps.Err, Verbose: options.verbose, HTTPClient: options.deps.HTTPClient})
 			if err != nil {
 				return err
 			}

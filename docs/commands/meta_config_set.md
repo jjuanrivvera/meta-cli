@@ -39,7 +39,6 @@ meta config set NAME [flags]
       --no-color         disable terminal color
   -o, --output string    output format: table, json, yaml, csv, or id (default "table")
       --quiet            suppress non-result messages
-      --show-token       show the access token in dry-run output
       --sort string      sort result rows by field
   -v, --verbose          show request diagnostics
 ```

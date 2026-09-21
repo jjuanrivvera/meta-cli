@@ -42,23 +42,15 @@ func TestClientJSONAndProof(t *testing.T) {
 	assert.Equal(t, "1", result["id"])
 }
 
-func TestClientDryRunRedactsAndCanReveal(t *testing.T) {
-	for _, show := range []bool{false, true} {
-		t.Run(map[bool]string{false: "redacted", true: "shown"}[show], func(t *testing.T) {
-			var output bytes.Buffer
-			client, err := New(Options{BaseURL: "http://127.0.0.1:1234", UploadURL: "http://127.0.0.1:1234", Token: "secret-token", DryRun: true, ShowToken: show, Writer: &output})
-			require.NoError(t, err)
-			_, err = client.Do(context.TODO(), Request{Method: http.MethodPost, Path: "object", Body: []byte(`{"message":"it's ready"}`)})
-			require.NoError(t, err)
-			if show {
-				assert.Contains(t, output.String(), "secret-token")
-			} else {
-				assert.NotContains(t, output.String(), "secret-token")
-				assert.Contains(t, output.String(), "<redacted>")
-			}
-			assert.Contains(t, output.String(), "curl -X 'POST'")
-		})
-	}
+func TestClientDryRunAlwaysRedactsToken(t *testing.T) {
+	var output bytes.Buffer
+	client, err := New(Options{BaseURL: "http://127.0.0.1:1234", UploadURL: "http://127.0.0.1:1234", Token: "secret-token", DryRun: true, Writer: &output})
+	require.NoError(t, err)
+	_, err = client.Do(context.TODO(), Request{Method: http.MethodPost, Path: "object", Body: []byte(`{"message":"it's ready"}`)})
+	require.NoError(t, err)
+	assert.NotContains(t, output.String(), "secret-token")
+	assert.Contains(t, output.String(), "<redacted>")
+	assert.Contains(t, output.String(), "curl -X 'POST'")
 }
 
 func TestDryRunNeverPrintsSecretsOrFileBytes(t *testing.T) {
@@ -66,7 +58,7 @@ func TestDryRunNeverPrintsSecretsOrFileBytes(t *testing.T) {
 	client, err := New(Options{
 		BaseURL: "http://127.0.0.1:1234", UploadURL: "http://127.0.0.1:1234",
 		Token: "page-token-value", AppSecret: "app-secret-value", DryRun: true,
-		ShowToken: true, AlwaysRedactToken: true, Redactions: []string{"unused-page-token-value"}, Writer: &output,
+		Redactions: []string{"unused-page-token-value"}, Writer: &output,
 	})
 	require.NoError(t, err)
 	query := url.Values{
@@ -141,7 +133,7 @@ func TestMultipartDryRunUsesEquivalentCurlForms(t *testing.T) {
 	})
 	require.NoError(t, err)
 	command := output.String()
-	assert.Contains(t, command, "dd if='/safe/video.mp4' bs=1 skip=4 count=8")
+	assert.Contains(t, command, "tail -c +5 '/safe/video.mp4' | head -c 8")
 	assert.Contains(t, command, "--form-string 'is_preferred=true'")
 	assert.Contains(t, command, "--form 'video_file_chunk=@-;filename=video.mp4;type=application/octet-stream'")
 	assert.NotContains(t, command, "runtime-boundary")
@@ -189,6 +181,7 @@ func TestRetryRulesAndRetryAfter(t *testing.T) {
 func TestBusinessUsageHeaderRetriesAndUsesEstimatedDelay(t *testing.T) {
 	calls := 0
 	var delays []time.Duration
+	var diagnostics bytes.Buffer
 	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		calls++
 		if calls == 1 {
@@ -198,11 +191,16 @@ func TestBusinessUsageHeaderRetriesAndUsesEstimatedDelay(t *testing.T) {
 			return
 		}
 		_, _ = io.WriteString(w, `{"ok":true}`)
-	}, func(options *Options) { options.Sleep = func(delay time.Duration) { delays = append(delays, delay) } })
+	}, func(options *Options) {
+		options.Sleep = func(delay time.Duration) { delays = append(delays, delay) }
+		options.Diagnostics = &diagnostics
+	})
 	_, err := client.Do(context.TODO(), Request{Method: http.MethodGet, Path: "throttled"})
 	require.NoError(t, err)
 	assert.Equal(t, 2, calls)
-	assert.Contains(t, delays, 7*time.Minute)
+	assert.Contains(t, delays, maximumThrottleDelay)
+	assert.Contains(t, diagnostics.String(), "rate limited; retrying in 5m0s")
+	assert.Contains(t, diagnostics.String(), "server requested 7m0s")
 }
 
 func TestGraphThrottleCodeRetriesWithoutUsageHeaders(t *testing.T) {
@@ -301,6 +299,24 @@ func TestCursorPaginationRebuildsQuery(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, items, 2)
 	assert.Equal(t, 2, calls)
+}
+
+func TestCursorPaginationRejectsRepeatedCursor(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"data":[{"id":"1"}],"paging":{"cursors":{"after":"same"}}}`)
+	}, nil)
+	_, err := client.List(context.Background(), "items", nil, true, 0)
+	require.ErrorContains(t, err, "pagination cursor repeated")
+}
+
+func TestVideoAPIUsesDedicatedProductionHost(t *testing.T) {
+	var output bytes.Buffer
+	client, err := New(Options{Token: "long-secret-token", DryRun: true, Writer: &output})
+	require.NoError(t, err)
+	_, err = client.Do(context.Background(), Request{Method: http.MethodPost, Path: "page-1/videos", VideoAPI: true})
+	require.NoError(t, err)
+	assert.Contains(t, output.String(), "https://graph-video.facebook.com/v26.0/page-1/videos")
+	assert.NotContains(t, output.String(), "https://graph.facebook.com/v26.0/page-1/videos")
 }
 
 func TestClientErrorsAndValidation(t *testing.T) {

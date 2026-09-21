@@ -2,6 +2,7 @@ package output
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -82,7 +83,7 @@ func TestSensitiveFieldsAreRedactedBeforeJQ(t *testing.T) {
 	assert.Contains(t, output.String(), "redacted")
 }
 
-func TestPageTokensAreRedactedInHumanAndMachineFormats(t *testing.T) {
+func TestEveryRendererSuppressesPageTokens(t *testing.T) {
 	for _, format := range []string{FormatTable, FormatJSON, FormatYAML, FormatCSV} {
 		t.Run(format, func(t *testing.T) {
 			var output bytes.Buffer
@@ -90,6 +91,25 @@ func TestPageTokensAreRedactedInHumanAndMachineFormats(t *testing.T) {
 			assert.NotContains(t, output.String(), "page-secret-token")
 		})
 	}
+}
+
+func TestSignedURLsKeepTheirOriginalEncodingAndParameterOrder(t *testing.T) {
+	const signedURL = "https://cdn.example/photo.jpg?stp=dst-jpg_e35&_nc_ht=host&_nc_cat=100&oh=00_AfB1x+yz&z=a%20b"
+	var output bytes.Buffer
+	require.NoError(t, New(Options{Format: FormatJSON, Writer: &output}).Render(map[string]any{"media_url": signedURL}))
+	var rendered map[string]any
+	require.NoError(t, json.Unmarshal(output.Bytes(), &rendered))
+	assert.Equal(t, signedURL, rendered["media_url"])
+}
+
+func TestShortSensitiveValuesDoNotCorruptOrdinaryFields(t *testing.T) {
+	var output bytes.Buffer
+	require.NoError(t, New(Options{Format: FormatJSON, Writer: &output}).Render(map[string]any{
+		"id": "1234567890", "access_token": "567",
+	}))
+	assert.Contains(t, output.String(), "1234567890")
+	assert.NotContains(t, output.String(), `"access_token": "567"`)
+	assert.Contains(t, output.String(), "redacted")
 }
 
 func TestNewSensitiveFieldValuesAreRedactedFromOrdinaryFields(t *testing.T) {

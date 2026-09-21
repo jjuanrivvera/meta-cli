@@ -9,7 +9,6 @@
 [![Go version](https://img.shields.io/github/go-mod/go-version/jjuanrivvera/meta-cli)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/jjuanrivvera/meta-cli)
-[![Built with cliwright](https://img.shields.io/badge/built_with-cliwright-1f6feb)](https://cliwright.jjuanrivvera.com)
 
 **Publish and manage Instagram, Facebook Pages, and WhatsApp Business from one command line.**
 
@@ -19,23 +18,30 @@
 
 ## Install
 
-The checksum-verifying installer supports macOS and Linux:
+Before the first tagged release, install directly from source with Go 1.25 or newer:
+
+```sh
+go install github.com/jjuanrivvera/meta-cli/cmd/meta@latest
+```
+
+After the first tagged release, the checksum-verifying installer will support macOS and Linux:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/jjuanrivvera/meta-cli/main/install.sh | sh
 ```
 
-Windows users can install from Scoop after the first release:
+Windows users will also be able to install from Scoop:
 
 ```powershell
 scoop bucket add meta-cli https://github.com/jjuanrivvera/scoop-meta-cli
 scoop install meta-cli
 ```
 
-To build the current checkout instead:
+To build a local checkout instead:
 
 ```sh
-go install github.com/jjuanrivvera/meta-cli/cmd/meta@latest
+make build
+./bin/meta version
 ```
 
 The installed command is `meta`; an unrelated npm package also installs a command by that name, so
@@ -82,6 +88,14 @@ meta whatsapp templates list --account work -o json
 All API operations support deterministic `table`, `json`, `yaml`, `csv`, and `id` output. Use
 `--columns`, `--filter`, `--sort`, `--jq`, `--all`, and `--limit` to shape results. A dry run emits
 copy-pasteable `curl` commands with credentials redacted.
+
+## Exit codes
+
+- `0`: the requested operation completed successfully.
+- `1`: the operation failed without a completed remote side effect.
+- `2`: the primary publish completed, but a follow-up step failed. The JSON result retains the
+  published object ID and identifies the failed step. Automation must record the ID and must not
+  retry the publish, because doing so can create duplicate content.
 
 MCP upload tools confine file reads to `META_MCP_ROOT`; when it is unset, the MCP server's
 working directory is the root. Symlinks that resolve outside that root are rejected.
