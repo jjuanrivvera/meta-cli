@@ -3,6 +3,7 @@ bin/
 dist/
 coverage.out
 site/
-.metactl-check.*/
+.meta-completeness.*/
+.meta-mcp-check.*/
 .tools/
 *.test

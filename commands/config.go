@@ -51,7 +51,7 @@ func newConfigViewCmd(options *globalOptions) *cobra.Command {
 
 func newConfigSetCmd(options *globalOptions) *cobra.Command {
 	var account config.Account
-	command := &cobra.Command{Use: "set NAME", Short: "Create or update an account", Args: cobra.ExactArgs(1), Example: "  metactl config set work --graph-version v26.0 --page-id 123 --instagram-id 456", RunE: func(_ *cobra.Command, args []string) error {
+	command := &cobra.Command{Use: "set NAME", Short: "Create or update an account", Args: cobra.ExactArgs(1), Example: "  meta config set work --graph-version v26.0 --page-id 123 --instagram-id 456", RunE: func(_ *cobra.Command, args []string) error {
 		value, err := config.Load(options.deps.ConfigPath)
 		if err != nil {
 			return err

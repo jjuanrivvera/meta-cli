@@ -1,19 +1,19 @@
 #!/bin/sh
-# metactl installer for macOS and Linux.
+# meta installer for macOS and Linux.
 #
 #   curl -fsSL https://raw.githubusercontent.com/jjuanrivvera/meta-cli/main/install.sh | sh
 #
 # Downloads the release archive matching your OS/arch, verifies its SHA-256 against the
 # release checksums.txt, and installs the binary. Configure via env vars:
-#   METACTL_VERSION=v1.2.3       pin a version (default: the latest release)
+#   META_CLI_VERSION=v1.2.3       pin a version (default: the latest release)
 #   INSTALL_DIR=/usr/local/bin   install location (default; falls back to ~/.local/bin)
 #
 # Windows: use Scoop (see the README). This installer is for macOS and Linux.
 set -eu
 
 REPO="jjuanrivvera/meta-cli"
-BINARY="metactl"
-VERSION="${METACTL_VERSION:-}"
+BINARY="meta"
+VERSION="${META_CLI_VERSION:-}"
 
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }
 
@@ -38,7 +38,7 @@ esac
 if [ -z "$VERSION" ]; then
   VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep '"tag_name"' | head -1 | sed -E 's/.*"tag_name" *: *"([^"]+)".*/\1/')"
-  [ -n "$VERSION" ] || die "could not determine the latest release; set METACTL_VERSION"
+  [ -n "$VERSION" ] || die "could not determine the latest release; set META_CLI_VERSION"
 fi
 
 base="https://github.com/${REPO}/releases/download/${VERSION}"

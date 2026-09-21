@@ -1,19 +1,19 @@
-# metactl
+# meta
 
-`metactl` is one command-line client for Instagram publishing, Facebook Pages, and WhatsApp
+`meta` is one command-line client for Instagram publishing, Facebook Pages, and WhatsApp
 Business. It provides typed resource commands, multi-account configuration, safe dry runs,
 resilient uploads, cursor pagination, and machine-readable output.
 
 ## Start here
 
 ```sh
-metactl config set work --graph-version v26.0 --page-id 123456789
-metactl auth login --account work
-metactl doctor --account work
-metactl pages posts list --account work --all
+meta config set work --graph-version v26.0 --page-id 123456789
+meta auth login --account work
+meta doctor --account work
+meta pages posts list --account work --all
 ```
 
-Use the [command reference](commands/metactl.md) for every command and flag. The
+Use the [command reference](commands/meta.md) for every command and flag. The
 [workflow guide](workflows.md) covers common publishing tasks.
 
 ## Safety defaults

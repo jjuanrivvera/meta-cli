@@ -66,9 +66,9 @@ func claudeCodeConfig(input guardInput) ([]guardFile, error) {
 		"hooks": map[string]any{
 			"PreToolUse": []any{
 				map[string]any{
-					"matcher": "Bash|mcp__metactl__.*",
+					"matcher": "Bash|mcp__meta__.*",
 					"hooks": []any{
-						map[string]any{"type": "command", "command": ".claude/hooks/metactl-guard.sh"},
+						map[string]any{"type": "command", "command": ".claude/hooks/meta-guard.sh"},
 					},
 				},
 			},
@@ -80,7 +80,7 @@ func claudeCodeConfig(input guardInput) ([]guardFile, error) {
 		return nil, err
 	}
 	return []guardFile{
-		{Path: ".claude/hooks/metactl-guard.sh", Content: buildPreToolUseHook(input), Executable: true},
+		{Path: ".claude/hooks/meta-guard.sh", Content: buildPreToolUseHook(input), Executable: true},
 		{Path: ".claude/settings.local.json", Content: string(raw) + "\n"},
 	}, nil
 }
@@ -88,9 +88,9 @@ func claudeCodeConfig(input guardInput) ([]guardFile, error) {
 func exactPermissionRules(commands []guardCommand) []string {
 	rules := make([]string, 0, len(commands)*2)
 	for _, command := range commands {
-		rules = append(rules, "Bash(metactl "+command.Path+"*)")
+		rules = append(rules, "Bash(meta "+command.Path+"*)")
 		if command.Tool != "" {
-			rules = append(rules, "mcp__metactl__"+strings.TrimPrefix(command.Tool, "metactl_")+"*")
+			rules = append(rules, "mcp__meta__"+strings.TrimPrefix(command.Tool, "meta_")+"*")
 		}
 	}
 	sort.Strings(rules)
@@ -108,12 +108,12 @@ func buildPreToolUseHook(input guardInput) string {
 	shell.WriteString("  command_text=$(printf '%s' \"$payload\" | tr '\\n{}:,' '     ')\n")
 	shell.WriteString("  tool_name=$command_text\nfi\n")
 	shell.WriteString("clean=$(printf '%s' \"$command_text\" | tr -d '\\042\\047\\134' | tr '\\n' ' ')\n")
-	shell.WriteString("deny() { printf '%s\\n' '{\"decision\":\"block\",\"reason\":\"metactl guard blocked a state-changing command\"}'; exit 2; }\n")
+	shell.WriteString("deny() { printf '%s\\n' '{\"decision\":\"block\",\"reason\":\"meta guard blocked a state-changing command\"}'; exit 2; }\n")
 	for _, command := range deny {
 		pathPattern := strings.ReplaceAll(command.Path, " ", "[[:space:]]+")
 		fmt.Fprintf(&shell, "printf '%%s' \"$clean\" | grep -Eq %s && deny\n", shellQuoteSingle("(^|[;&|([:space:]]+)([^[:space:]]*/)?"+input.Binary+"[[:space:]]+"+pathPattern+"([[:space:];&|)]|$)"))
 		if command.Tool != "" {
-			hostedTool := "mcp__metactl__" + strings.TrimPrefix(command.Tool, "metactl_")
+			hostedTool := "mcp__meta__" + strings.TrimPrefix(command.Tool, "meta_")
 			fmt.Fprintf(&shell, "printf '%%s' \"$tool_name\" | grep -Eq %s && deny\n", shellQuoteSingle("(^|[[:space:]\"'])("+command.Tool+"|"+hostedTool+")([[:space:]\"']|$)"))
 		}
 	}

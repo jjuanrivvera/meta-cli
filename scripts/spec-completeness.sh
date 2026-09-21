@@ -91,7 +91,7 @@ BIN="$(jq -r '.binary // "__BINARY__"' "$MANIFEST")"
 BIN_PATH="bin/$BIN"
 make build >/dev/null 2>&1 || { echo "✗ cannot build $BIN for completeness"; exit 1; }
 [[ -x "$BIN_PATH" ]] || { echo "✗ build did not produce $BIN_PATH"; exit 1; }
-TMPDIR_LOCAL="$(mktemp -d .metactl-completeness.XXXXXX)" || exit 1
+TMPDIR_LOCAL="$(mktemp -d .meta-completeness.XXXXXX)" || exit 1
 trap 'rm -rf "$TMPDIR_LOCAL"' EXIT INT TERM
 jq -r '.resources[] as $r | $r.verbs[] | "\($r.name // $r.path) \(.)"' "$MANIFEST" | sort > "$TMPDIR_LOCAL/manifest"
 "$BIN_PATH" __surface list | sort > "$TMPDIR_LOCAL/tree"

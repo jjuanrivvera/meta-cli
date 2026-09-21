@@ -32,7 +32,7 @@ func newVersionCmd(options *globalOptions) *cobra.Command {
 		if asJSON {
 			return options.render(result, nil)
 		}
-		fmt.Fprintf(command.OutOrStdout(), "metactl %s (%s, %s)\n", info.Version, info.Commit, info.Date)
+		fmt.Fprintf(command.OutOrStdout(), "meta %s (%s, %s)\n", info.Version, info.Commit, info.Date)
 		if latest, ok := result["latest"].(string); ok {
 			fmt.Fprintf(command.OutOrStdout(), "latest %s\n", latest)
 		}

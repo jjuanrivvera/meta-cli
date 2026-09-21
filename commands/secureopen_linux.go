@@ -14,7 +14,7 @@ import (
 func secureOpenUnderRoot(confinement *mcpFileConfinement, filePath string) (*os.File, error) {
 	relative, err := filepath.Rel(confinement.root, filePath)
 	if err != nil || relative == "." || relative == ".." || filepath.IsAbs(relative) || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return nil, fmt.Errorf("MCP file path %q is outside METACTL_MCP_ROOT", filePath)
+		return nil, fmt.Errorf("MCP file path %q is outside META_MCP_ROOT", filePath)
 	}
 	how := &unix.OpenHow{
 		Flags:   uint64(unix.O_RDONLY | unix.O_CLOEXEC),

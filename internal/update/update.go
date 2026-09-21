@@ -46,7 +46,7 @@ func New(client *http.Client) *Updater {
 	if client == nil {
 		client = &http.Client{Timeout: 60 * time.Second}
 	}
-	return &Updater{Client: client, APIBase: "https://api.github.com", Repo: "jjuanrivvera/meta-cli", Binary: "metactl", GOOS: runtime.GOOS, GOARCH: runtime.GOARCH}
+	return &Updater{Client: client, APIBase: "https://api.github.com", Repo: "jjuanrivvera/meta-cli", Binary: "meta", GOOS: runtime.GOOS, GOARCH: runtime.GOARCH}
 }
 
 func (updater *Updater) Latest(ctx context.Context) (*Release, error) {
@@ -237,7 +237,7 @@ func replaceExecutable(executablePath string, binary []byte) error {
 		return fmt.Errorf("stat executable: %w", err)
 	}
 	directory := filepath.Dir(executablePath)
-	temporary, err := os.CreateTemp(directory, ".metactl-update-*")
+	temporary, err := os.CreateTemp(directory, ".meta-update-*")
 	if err != nil {
 		return err
 	}

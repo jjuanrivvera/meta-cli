@@ -592,7 +592,7 @@ func TestAuthLoginRedactsStoredSecretsFromSuccessfulIdentity(t *testing.T) {
 		storedPage      = "stored-page-credential"
 		environmentPage = "environment-page-credential"
 	)
-	t.Setenv("METACTL_PAGE_TOKEN", environmentPage)
+	t.Setenv("META_PAGE_TOKEN", environmentPage)
 	test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "Bearer fresh-user-token", request.Header.Get("Authorization"))
 		_, _ = io.WriteString(writer, `{"id":"user-1","name":"echo test-secret, `+storedPage+`, and `+environmentPage+`"}`)
@@ -610,9 +610,9 @@ func TestAuthLoginRedactsStoredSecretsFromSuccessfulIdentity(t *testing.T) {
 func TestEnvironmentOverridesDoNotDisplaceStoredSecretRedactions(t *testing.T) {
 	stored := auth.Credential{Token: "stored-user-secret", PageToken: "stored-page-secret", AppSecret: "stored-app-secret"}
 	effective := auth.Credential{Token: "environment-user-secret", PageToken: "environment-page-secret", AppSecret: "environment-app-secret"}
-	t.Setenv("METACTL_TOKEN", effective.Token)
-	t.Setenv("METACTL_PAGE_TOKEN", effective.PageToken)
-	t.Setenv("METACTL_APP_SECRET", effective.AppSecret)
+	t.Setenv("META_TOKEN", effective.Token)
+	t.Setenv("META_PAGE_TOKEN", effective.PageToken)
+	t.Setenv("META_APP_SECRET", effective.AppSecret)
 	test, serverURL := newCommandTest(t, func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "Bearer "+effective.PageToken, request.Header.Get("Authorization"))
 		_, _ = io.WriteString(writer, `{"data":[{"id":"post-1","message":"`+stored.Token+` `+stored.PageToken+` `+stored.AppSecret+` `+effective.Token+` `+effective.PageToken+` `+effective.AppSecret+`"}]}`)

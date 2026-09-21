@@ -3,9 +3,9 @@ project_name: meta-cli
 before:
   hooks: [go mod tidy, ./scripts/completions.sh]
 builds:
-  - id: metactl
-    main: ./cmd/metactl
-    binary: metactl
+  - id: meta
+    main: ./cmd/meta
+    binary: meta
     env: [CGO_ENABLED=0]
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
@@ -16,7 +16,7 @@ builds:
       - -X github.com/jjuanrivvera/meta-cli/internal/version.Commit={{.ShortCommit}}
       - -X github.com/jjuanrivvera/meta-cli/internal/version.Date={{.Date}}
 archives:
-  - ids: [metactl]
+  - ids: [meta]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
     format_overrides: [{goos: windows, formats: [zip]}]
@@ -25,7 +25,7 @@ checksum: {name_template: checksums.txt}
 snapshot: {version_template: "{{ incpatch .Version }}-next"}
 homebrew_casks:
   - name: meta-cli
-    binaries: [metactl]
+    binaries: [meta]
     repository: {owner: jjuanrivvera, name: homebrew-meta-cli, token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"}
     homepage: https://github.com/jjuanrivvera/meta-cli
     description: Meta Business Graph API command line client
@@ -33,7 +33,7 @@ homebrew_casks:
     hooks:
       post:
         install: |
-          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/metactl"]
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/meta"]
 scoops:
   - name: meta-cli
     repository: {owner: jjuanrivvera, name: scoop-meta-cli, token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"}
@@ -41,7 +41,7 @@ scoops:
     description: Meta Business Graph API command line client
     license: MIT
 nfpms:
-  - ids: [metactl]
+  - ids: [meta]
     package_name: meta-cli
     vendor: jjuanrivvera
     homepage: https://github.com/jjuanrivvera/meta-cli
@@ -51,9 +51,9 @@ nfpms:
     formats: [deb, rpm, apk]
     bindir: /usr/bin
     contents:
-      - {src: ./completions/metactl.bash, dst: /usr/share/bash-completion/completions/metactl, file_info: {mode: 0644}}
-      - {src: ./completions/metactl.zsh, dst: /usr/share/zsh/site-functions/_metactl, file_info: {mode: 0644}}
-      - {src: ./completions/metactl.fish, dst: /usr/share/fish/vendor_completions.d/metactl.fish, file_info: {mode: 0644}}
+      - {src: ./completions/meta.bash, dst: /usr/share/bash-completion/completions/meta, file_info: {mode: 0644}}
+      - {src: ./completions/meta.zsh, dst: /usr/share/zsh/site-functions/_meta, file_info: {mode: 0644}}
+      - {src: ./completions/meta.fish, dst: /usr/share/fish/vendor_completions.d/meta.fish, file_info: {mode: 0644}}
 sboms: [{artifacts: archive}]
 signs:
   - cmd: cosign

@@ -25,7 +25,7 @@ func newAliasCmd(options *globalOptions) *cobra.Command {
 }
 
 func newAliasSetCmd(options *globalOptions) *cobra.Command {
-	command := &cobra.Command{Use: "set NAME EXPANSION", Short: "Create or replace an alias", Args: cobra.ExactArgs(2), Example: "  metactl alias set scheduled 'pages posts list --filter is_published=false'", RunE: func(_ *cobra.Command, args []string) error {
+	command := &cobra.Command{Use: "set NAME EXPANSION", Short: "Create or replace an alias", Args: cobra.ExactArgs(2), Example: "  meta alias set scheduled 'pages posts list --filter is_published=false'", RunE: func(_ *cobra.Command, args []string) error {
 		if builtInCommands[args[0]] || strings.HasPrefix(args[0], "-") {
 			return fmt.Errorf("alias %q would shadow a built-in or flag", args[0])
 		}

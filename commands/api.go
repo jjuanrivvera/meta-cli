@@ -19,7 +19,7 @@ func init() {
 func newAPICmd(options *globalOptions) *cobra.Command {
 	var data string
 	var queryValues []string
-	command := &cobra.Command{Use: "api METHOD PATH", Short: "Send a raw authenticated Graph request", Args: cobra.ExactArgs(2), Example: "  metactl api GET me -q fields=id,name\n  metactl api POST 123/feed -d '{\"message\":\"Hello\"}' --dry-run", RunE: func(command *cobra.Command, args []string) error {
+	command := &cobra.Command{Use: "api METHOD PATH", Short: "Send a raw authenticated Graph request", Args: cobra.ExactArgs(2), Example: "  meta api GET me -q fields=id,name\n  meta api POST 123/feed -d '{\"message\":\"Hello\"}' --dry-run", RunE: func(command *cobra.Command, args []string) error {
 		method := strings.ToUpper(args[0])
 		if _, ok := map[string]bool{http.MethodGet: true, http.MethodPost: true, http.MethodPut: true, http.MethodPatch: true, http.MethodDelete: true}[method]; !ok {
 			return fmt.Errorf("unsupported method %q", method)

@@ -17,7 +17,7 @@ func init() {
 
 func newDoctorCmd(options *globalOptions) *cobra.Command {
 	var jsonOutput bool
-	command := &cobra.Command{Use: "doctor", Short: "Check configuration, credentials, and Graph connectivity", Example: "  metactl doctor --json", RunE: func(command *cobra.Command, _ []string) error {
+	command := &cobra.Command{Use: "doctor", Short: "Check configuration, credentials, and Graph connectivity", Example: "  meta doctor --json", RunE: func(command *cobra.Command, _ []string) error {
 		if jsonOutput {
 			options.output = "json"
 		}

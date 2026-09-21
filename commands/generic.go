@@ -23,19 +23,19 @@ func annotate(command *cobra.Command, kind string) {
 		command.Annotations["destructiveHint"] = "true"
 		command.Annotations["openWorldHint"] = "true"
 	}
-	command.Annotations["metactlKind"] = kind
+	command.Annotations["metaKind"] = kind
 }
 
 func AnnotationKind(command *cobra.Command) string {
 	if command.Annotations == nil {
 		return ""
 	}
-	return command.Annotations["metactlKind"]
+	return command.Annotations["metaKind"]
 }
 
 func markLocal(command *cobra.Command) {
 	if command.Annotations == nil {
 		command.Annotations = map[string]string{}
 	}
-	command.Annotations["metactlLocal"] = "true"
+	command.Annotations["metaLocal"] = "true"
 }

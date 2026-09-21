@@ -1,6 +1,6 @@
 # Contributor guide
 
-`metactl` is a Go and Cobra command-line client for Meta Business Graph API surfaces.
+`meta` is a Go and Cobra command-line client for Meta Business Graph API surfaces.
 
 - Run `make verify` before every commit. It includes formatting, static analysis, security checks, tests, docs drift, the API manifest gates, coverage, black-box E2E, the Definition-of-Done checks, and the review rubric.
 - `specs/enumeration.json` is the endpoint inventory. `api-manifest.json` is the public command contract. Update both before changing API command coverage.

@@ -3,7 +3,7 @@
 # One concrete check per atomic criterion. Copied into a generated CLI under scripts/.
 # Usage: ./scripts/dod-check.sh <binary-name>
 set -uo pipefail
-BIN="${1:-metactl}"
+BIN="${1:-meta}"
 fail=0
 
 ok()   { printf "  ✓ %s\n" "$1"; }
@@ -30,7 +30,7 @@ have "guard no-jq JSON flattening"       "guard_flattening_present"
 mcp_annotations_present() {
   command -v jq >/dev/null || return 0
   local d mp rc=1
-  d=$(mktemp -d .metactl-mcp-check.XXXXXX) || return 1
+  d=$(mktemp -d .meta-mcp-check.XXXXXX) || return 1
   mp=$(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./... 2>/dev/null | head -1)
   if [[ -n "$mp" ]] && go build -o "$d/bin" "$mp" >/dev/null 2>&1 &&
      (cd "$d" && ./bin mcp tools >/dev/null 2>&1) &&
@@ -90,7 +90,7 @@ have "spec rejects unknown verbs"         "! bin/$BIN __surface resolve pages po
 have "manifest equals command tree"       "scripts/spec-completeness.sh api-manifest.json 90"
 have "update command"                     "bin/$BIN update --help"
 have "live-smoke runbook"                 "test -f docs/live-smoke.md"
-have "generated command docs"             "test -f docs/commands/metactl.md"
+have "generated command docs"             "test -f docs/commands/meta.md"
 
 if [[ $fail -ne 0 ]]; then
   echo "✗ Definition-of-Done incomplete"; exit 1

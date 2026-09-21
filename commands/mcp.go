@@ -38,7 +38,7 @@ func mcpCommandSelector(command *cobra.Command) bool {
 func init() {
 	registerMeta(func(root *cobra.Command, _ *globalOptions) {
 		root.AddCommand(ophis.Command(&ophis.Config{
-			ToolNamePrefix: "metactl",
+			ToolNamePrefix: "meta",
 			Selectors: []ophis.Selector{{
 				CmdSelector:           mcpCommandSelector,
 				LocalFlagSelector:     ophis.ExcludeFlags("yes"),
@@ -56,7 +56,7 @@ func confineMCPFiles(ctx context.Context, request *mcp.CallToolRequest, input op
 			return nil, ophis.ToolOutput{}, fmt.Errorf("MCP positional arguments may not inject command flags")
 		}
 	}
-	root := os.Getenv("METACTL_MCP_ROOT")
+	root := os.Getenv("META_MCP_ROOT")
 	if root == "" {
 		root, err = os.Getwd()
 		if err != nil {
@@ -160,7 +160,7 @@ func closeMCPConfinement(ctx context.Context) {
 
 func pathWithinRoot(root, selected string) (string, error) {
 	if selected == "-" {
-		return "", fmt.Errorf("MCP file input must be a regular file under METACTL_MCP_ROOT")
+		return "", fmt.Errorf("MCP file input must be a regular file under META_MCP_ROOT")
 	}
 	absolute := selected
 	if !filepath.IsAbs(absolute) {
@@ -172,7 +172,7 @@ func pathWithinRoot(root, selected string) (string, error) {
 	}
 	relative, err := filepath.Rel(root, resolved)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("MCP file path %q is outside METACTL_MCP_ROOT", selected)
+		return "", fmt.Errorf("MCP file path %q is outside META_MCP_ROOT", selected)
 	}
 	info, err := os.Stat(resolved) // #nosec G703 -- EvalSymlinks plus the Rel check above confines this path to the MCP root
 	if err != nil {

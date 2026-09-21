@@ -31,7 +31,7 @@ func TestClassifyCommandsAndAliases(t *testing.T) {
 }
 
 func TestHostConfigSchemas(t *testing.T) {
-	input := guardInput{Binary: "metactl", Commands: []guardCommand{{Path: "pages posts list", Tool: "metactl_pages_posts_list", Kind: guardRead}, {Path: "pages posts create", Tool: "metactl_pages_posts_create", Kind: guardApproval}, {Path: "pages posts delete", Tool: "metactl_pages_posts_delete", Kind: guardIrreversible}}}
+	input := guardInput{Binary: "meta", Commands: []guardCommand{{Path: "pages posts list", Tool: "meta_pages_posts_list", Kind: guardRead}, {Path: "pages posts create", Tool: "meta_pages_posts_create", Kind: guardApproval}, {Path: "pages posts delete", Tool: "meta_pages_posts_delete", Kind: guardIrreversible}}}
 	files, err := renderHostConfig("claude-code", input)
 	require.NoError(t, err)
 	assert.Len(t, files, 2)

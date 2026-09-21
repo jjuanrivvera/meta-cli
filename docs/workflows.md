@@ -5,7 +5,7 @@
 Preview every request first:
 
 ```sh
-metactl instagram publish reel --account work \
+meta instagram publish reel --account work \
   --video ./launch.mp4 \
   --cover-url https://cdn.example/cover.jpg \
   --caption "Launch day" \
@@ -20,7 +20,7 @@ for the container to finish before publishing and optionally creates the first c
 ## Schedule a Page post
 
 ```sh
-metactl pages posts create --account work \
+meta pages posts create --account work \
   --message "Coming soon" \
   --published=false \
   --scheduled-at 1789900000 \
@@ -32,7 +32,7 @@ metactl pages posts create --account work \
 ## Publish a Page video
 
 ```sh
-metactl pages videos publish --account work \
+meta pages videos publish --account work \
   --file ./launch.mp4 \
   --title "Launch" \
   --description "Product walkthrough" \
@@ -46,16 +46,16 @@ session, and uploads the thumbnail. Transient chunk failures can be retried safe
 ## Work with WhatsApp templates
 
 ```sh
-metactl whatsapp templates create --account work \
+meta whatsapp templates create --account work \
   --name order_ready --language en_US --category UTILITY \
   --components '[{"type":"BODY","text":"Order {{1}} is ready"}]' \
   --dry-run
-metactl whatsapp templates list --account work --all -o json
+meta whatsapp templates list --account work --all -o json
 ```
 
 Sending a message is a real-world side effect and is classified as a write:
 
 ```sh
-metactl whatsapp send text --account work \
+meta whatsapp send text --account work \
   --to 15551234567 --message "Hello" --dry-run
 ```

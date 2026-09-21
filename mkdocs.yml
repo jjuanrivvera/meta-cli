@@ -1,4 +1,4 @@
-site_name: metactl
+site_name: meta
 site_description: Meta Business Graph API from the command line
 site_url: https://jjuanrivvera.github.io/meta-cli/
 repo_url: https://github.com/jjuanrivvera/meta-cli
@@ -36,7 +36,7 @@ nav:
   - Home: index.md
   - Workflows: workflows.md
   - Live smoke test: live-smoke.md
-  - Command reference: commands/metactl.md
+  - Command reference: commands/meta.md
 
 plugins:
   - search

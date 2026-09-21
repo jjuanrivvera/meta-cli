@@ -17,7 +17,7 @@ func init() {
 
 func newUpdateCmd(options *globalOptions) *cobra.Command {
 	var check bool
-	command := &cobra.Command{Use: "update", Short: "Install the latest checksum-verified release", Example: "  metactl update --check\n  metactl update", RunE: func(command *cobra.Command, _ []string) error {
+	command := &cobra.Command{Use: "update", Short: "Install the latest checksum-verified release", Example: "  meta update --check\n  meta update", RunE: func(command *cobra.Command, _ []string) error {
 		updater := newUpdater(options.deps.HTTPClient)
 		if check || options.dryRun {
 			release, err := updater.Latest(command.Context())
@@ -30,7 +30,7 @@ func newUpdateCmd(options *globalOptions) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(command.OutOrStdout(), "updated metactl to %s; backup saved beside the executable\n", version)
+		fmt.Fprintf(command.OutOrStdout(), "updated meta to %s; backup saved beside the executable\n", version)
 		return nil
 	}}
 	command.Flags().BoolVar(&check, "check", false, "check without replacing the executable")

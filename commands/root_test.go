@@ -13,9 +13,13 @@ import (
 	"github.com/jjuanrivvera/meta-cli/internal/auth"
 )
 
-type memoryStore struct{ values map[string]auth.Credential }
+type memoryStore struct {
+	values map[string]auth.Credential
+	gets   int
+}
 
 func (store *memoryStore) Get(account string) (auth.Credential, error) {
+	store.gets++
 	credential, ok := store.values[account]
 	if !ok {
 		return auth.Credential{}, auth.ErrNotFound
@@ -53,6 +57,29 @@ func TestRootHelpAndFlags(t *testing.T) {
 	harness.root.SetArgs([]string{"--help"})
 	require.NoError(t, harness.root.Execute())
 	assert.Contains(t, output.String(), "Instagram publishing")
+}
+
+func TestSurfaceInspectionDoesNotReadCredentials(t *testing.T) {
+	var output bytes.Buffer
+	store := &memoryStore{values: map[string]auth.Credential{"default": {Token: "stored-token"}}}
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	root := NewRootCmd(Dependencies{Out: &output, Err: &output, Store: store, ConfigPath: configPath})
+	root.SetArgs([]string{"__surface", "resolve", "auth"})
+	require.NoError(t, root.Execute())
+	assert.Equal(t, "auth\n", output.String())
+	assert.Zero(t, store.gets)
+
+	_ = commandCredentialSecrets([]string{"__surface", "resolve", "auth"}, Dependencies{Store: store, ConfigPath: configPath})
+	assert.Zero(t, store.gets)
+
+	t.Chdir(t.TempDir())
+	root = NewRootCmd(Dependencies{Out: &output, Err: &output, Store: store, ConfigPath: configPath})
+	root.SetArgs([]string{"mcp", "tools"})
+	require.NoError(t, root.Execute())
+	assert.Zero(t, store.gets)
+
+	_ = commandCredentialSecrets([]string{"mcp", "tools"}, Dependencies{Store: store, ConfigPath: configPath})
+	assert.Zero(t, store.gets)
 }
 
 func TestSplitComma(t *testing.T) {

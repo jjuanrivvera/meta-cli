@@ -100,7 +100,7 @@ func whatsappTemplates(options *globalOptions) *cobra.Command {
 	}}
 	var createWrite writeOptions
 	var name, language, category, components string
-	create := operationSpec{Use: "create", Short: "Create a message template", Kind: kindWrite, Example: "  metactl whatsapp templates create --name order_ready --language en_US --category UTILITY --components '[{\"type\":\"BODY\",\"text\":\"Order {{1}} is ready\"}]'", Flags: func(command *cobra.Command) {
+	create := operationSpec{Use: "create", Short: "Create a message template", Kind: kindWrite, Example: "  meta whatsapp templates create --name order_ready --language en_US --category UTILITY --components '[{\"type\":\"BODY\",\"text\":\"Order {{1}} is ready\"}]'", Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&name, "name", "", "template name")
 		command.Flags().StringVar(&language, "language", "en_US", "template language")
 		command.Flags().StringVar(&category, "category", "UTILITY", "template category")
@@ -283,7 +283,7 @@ func uploadWhatsAppMedia(command *cobra.Command, client *api.Client, phoneID, fi
 
 func whatsappSend(options *globalOptions) *cobra.Command {
 	var to, message, templateName, language, components string
-	text := operationSpec{Use: "text", Short: "Send a WhatsApp text message (remote side effect)", Kind: kindWrite, Example: "  metactl whatsapp send text --to 15551234567 --message 'Hello'", Flags: func(command *cobra.Command) {
+	text := operationSpec{Use: "text", Short: "Send a WhatsApp text message (remote side effect)", Kind: kindWrite, Example: "  meta whatsapp send text --to 15551234567 --message 'Hello'", Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&to, "to", "", "recipient phone number")
 		command.Flags().StringVar(&message, "message", "", "message body")
 		_ = command.MarkFlagRequired("to")
@@ -296,7 +296,7 @@ func whatsappSend(options *globalOptions) *cobra.Command {
 		body, _ := json.Marshal(map[string]any{"messaging_product": "whatsapp", "recipient_type": "individual", "to": to, "type": "text", "text": map[string]any{"body": message}})
 		return client.Write(command.Context(), phoneID+"/messages", nil, body)
 	}}
-	template := operationSpec{Use: "template", Short: "Send a WhatsApp template message (remote side effect)", Kind: kindWrite, Example: "  metactl whatsapp send template --to 15551234567 --name order_ready --language en_US", Flags: func(command *cobra.Command) {
+	template := operationSpec{Use: "template", Short: "Send a WhatsApp template message (remote side effect)", Kind: kindWrite, Example: "  meta whatsapp send template --to 15551234567 --name order_ready --language en_US", Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&to, "to", "", "recipient phone number")
 		command.Flags().StringVar(&templateName, "name", "", "approved template name")
 		command.Flags().StringVar(&language, "language", "en_US", "template language code")

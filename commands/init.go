@@ -22,7 +22,7 @@ func newInitCmd(options *globalOptions) *cobra.Command {
 		Use:     "init",
 		Aliases: []string{"setup"},
 		Short:   "Configure an account and store its credential",
-		Example: "  metactl init --account work --page-id 123 --instagram-id 456 --waba-id 789 --phone-id 101",
+		Example: "  meta init --account work --page-id 123 --instagram-id 456 --waba-id 789 --phone-id 101",
 		RunE: func(command *cobra.Command, _ []string) error {
 			name := options.account
 			if name == "" {
@@ -51,7 +51,7 @@ func newInitCmd(options *globalOptions) *cobra.Command {
 			if token == "" {
 				return fmt.Errorf("access token is required")
 			}
-			appSecret := os.Getenv("METACTL_APP_SECRET")
+			appSecret := os.Getenv("META_APP_SECRET")
 			if promptAppSecret && appSecret == "" {
 				var promptErr error
 				appSecret, promptErr = promptSecret(command, "App secret: ")
@@ -72,7 +72,7 @@ func newInitCmd(options *globalOptions) *cobra.Command {
 				return err
 			}
 			if !options.quiet {
-				fmt.Fprintf(command.ErrOrStderr(), "account %q configured; run metactl doctor\n", name)
+				fmt.Fprintf(command.ErrOrStderr(), "account %q configured; run meta doctor\n", name)
 			}
 			return nil
 		},

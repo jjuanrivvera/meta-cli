@@ -34,8 +34,8 @@ func newAuthLoginCmd(options *globalOptions) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "login",
 		Short: "Verify and store an access token",
-		Example: "  metactl auth login --account work\n" +
-			"  printf '%s\\n' \"$TOKEN\" | metactl auth login --account ci",
+		Example: "  meta auth login --account work\n" +
+			"  printf '%s\\n' \"$TOKEN\" | meta auth login --account ci",
 		RunE: func(command *cobra.Command, _ []string) error {
 			name, account, err := options.loadAccount()
 			if err != nil {
@@ -50,7 +50,7 @@ func newAuthLoginCmd(options *globalOptions) *cobra.Command {
 			if token == "" {
 				return fmt.Errorf("access token is required")
 			}
-			appSecret := os.Getenv("METACTL_APP_SECRET")
+			appSecret := os.Getenv("META_APP_SECRET")
 			if promptAppSecret && appSecret == "" {
 				appSecret, err = promptSecret(command, "App secret: ")
 				if err != nil {
@@ -60,7 +60,7 @@ func newAuthLoginCmd(options *globalOptions) *cobra.Command {
 			credential, _ := options.deps.Store.Get(name)
 			options.redactions = []string{
 				token, credential.Token, credential.PageToken, appSecret, credential.AppSecret,
-				os.Getenv("METACTL_TOKEN"), os.Getenv("METACTL_PAGE_TOKEN"), os.Getenv("METACTL_APP_SECRET"),
+				os.Getenv("META_TOKEN"), os.Getenv("META_PAGE_TOKEN"), os.Getenv("META_APP_SECRET"),
 			}
 			client, err := api.New(api.Options{BaseURL: account.BaseURL, UploadURL: account.UploadURL, Version: account.GraphVersion, Token: token, AppSecret: appSecret, DryRun: options.dryRun, ShowToken: options.showToken, Redactions: options.redactions, Writer: options.deps.Err, Diagnostics: options.deps.Err, Verbose: options.verbose, HTTPClient: options.deps.HTTPClient})
 			if err != nil {
@@ -127,7 +127,7 @@ func newAuthLogoutCmd(options *globalOptions) *cobra.Command {
 }
 
 func newAuthStatusCmd(options *globalOptions) *cobra.Command {
-	command := &cobra.Command{Use: "status", Aliases: []string{"whoami"}, Short: "Verify the active identity", Example: "  metactl auth status -o json", RunE: func(command *cobra.Command, _ []string) error {
+	command := &cobra.Command{Use: "status", Aliases: []string{"whoami"}, Short: "Verify the active identity", Example: "  meta auth status -o json", RunE: func(command *cobra.Command, _ []string) error {
 		client, name, account, err := options.clientFor()
 		if err != nil {
 			return err
@@ -148,7 +148,7 @@ func newAuthStatusCmd(options *globalOptions) *cobra.Command {
 }
 
 func newAuthDebugCmd(options *globalOptions) *cobra.Command {
-	command := &cobra.Command{Use: "debug", Short: "Inspect the active token with debug_token", Example: "  metactl auth debug -o json", RunE: func(command *cobra.Command, _ []string) error {
+	command := &cobra.Command{Use: "debug", Short: "Inspect the active token with debug_token", Example: "  meta auth debug -o json", RunE: func(command *cobra.Command, _ []string) error {
 		client, name, account, err := options.clientFor()
 		if err != nil {
 			return err
@@ -173,7 +173,7 @@ func newAuthDebugCmd(options *globalOptions) *cobra.Command {
 
 func newAuthExchangeCmd(options *globalOptions) *cobra.Command {
 	var save bool
-	command := &cobra.Command{Use: "exchange", Short: "Exchange the active user token for a long-lived token", Example: "  metactl auth exchange --save", RunE: func(command *cobra.Command, _ []string) error {
+	command := &cobra.Command{Use: "exchange", Short: "Exchange the active user token for a long-lived token", Example: "  meta auth exchange --save", RunE: func(command *cobra.Command, _ []string) error {
 		client, name, account, err := options.clientFor()
 		if err != nil {
 			return err
@@ -183,7 +183,7 @@ func newAuthExchangeCmd(options *globalOptions) *cobra.Command {
 			return err
 		}
 		if account.AppID == "" || credential.AppSecret == "" {
-			return fmt.Errorf("app id and app secret are required; set --app-id and METACTL_APP_SECRET, or run auth login --prompt-app-secret")
+			return fmt.Errorf("app id and app secret are required; set --app-id and META_APP_SECRET, or run auth login --prompt-app-secret")
 		}
 		query := url.Values{"grant_type": {"fb_exchange_token"}, "client_id": {account.AppID}, "client_secret": {credential.AppSecret}, "fb_exchange_token": {credential.Token}}
 		var result struct {
@@ -209,7 +209,7 @@ func newAuthExchangeCmd(options *globalOptions) *cobra.Command {
 
 func newAuthPagesCmd(options *globalOptions) *cobra.Command {
 	var save bool
-	command := &cobra.Command{Use: "pages", Short: "List Pages and derived Page access tokens", Example: "  metactl auth pages -o json", RunE: func(command *cobra.Command, _ []string) error {
+	command := &cobra.Command{Use: "pages", Short: "List Pages and derived Page access tokens", Example: "  meta auth pages -o json", RunE: func(command *cobra.Command, _ []string) error {
 		client, name, _, err := options.clientFor()
 		if err != nil {
 			return err

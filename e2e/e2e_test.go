@@ -33,17 +33,17 @@ var (
 
 func TestMain(main *testing.M) {
 	var err error
-	buildDir, err = os.MkdirTemp("", "metactl-e2e-*")
+	buildDir, err = os.MkdirTemp("", "meta-e2e-*")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	binaryName := "metactl"
+	binaryName := "meta"
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"
 	}
 	binaryPath = filepath.Join(buildDir, binaryName)
-	command := exec.Command("go", "build", "-o", binaryPath, "../cmd/metactl") // #nosec G204 -- fixed build command and package
+	command := exec.Command("go", "build", "-o", binaryPath, "../cmd/meta") // #nosec G204 -- fixed build command and package
 	command.Stdout = os.Stderr
 	command.Stderr = os.Stderr
 	if err := command.Run(); err != nil {
@@ -465,10 +465,11 @@ func TestEndToEndStrictFakeGraph(t *testing.T) {
 	require.NoError(t, os.WriteFile(mediaPath, []byte("fake-video"), 0o600))
 	require.NoError(t, os.WriteFile(thumbnailPath, []byte("fake-image"), 0o600))
 	environment := []string{
-		"METACTL_TOKEN=fake-token", "METACTL_PAGE_TOKEN=page-token",
-		"METACTL_BASE_URL=" + server.URL, "METACTL_UPLOAD_URL=" + server.URL,
-		"METACTL_INSTAGRAM_ID=ig-1", "METACTL_PAGE_ID=page-1", "METACTL_WABA_ID=waba-1",
-		"METACTL_PHONE_ID=phone-1", "METACTL_BUSINESS_ID=business-1", "NO_COLOR=1",
+		"META_TOKEN=fake-token", "META_PAGE_TOKEN=page-token",
+		"META_KEYRING_BACKEND=file", "META_KEYRING_PASSWORD=e2e",
+		"META_BASE_URL=" + server.URL, "META_UPLOAD_URL=" + server.URL,
+		"META_INSTAGRAM_ID=ig-1", "META_PAGE_ID=page-1", "META_WABA_ID=waba-1",
+		"META_PHONE_ID=phone-1", "META_BUSINESS_ID=business-1", "NO_COLOR=1",
 		"XDG_CONFIG_HOME=" + t.TempDir(),
 	}
 
@@ -552,26 +553,28 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	process := exec.Command(binaryPath, "mcp", "start") // #nosec G204 -- binaryPath is produced by this test suite
 	process.Dir = workingDirectory
 	process.Env = append(os.Environ(),
-		"METACTL_MCP_ROOT="+mcpRoot,
-		"METACTL_TOKEN="+userToken,
-		"METACTL_PAGE_TOKEN="+pageToken,
-		"METACTL_APP_SECRET="+appSecret,
-		"METACTL_BASE_URL="+server.URL,
-		"METACTL_UPLOAD_URL="+server.URL,
-		"METACTL_PAGE_ID=page-1",
-		"METACTL_INSTAGRAM_ID=ig-1",
-		"METACTL_WABA_ID=waba-1",
+		"META_MCP_ROOT="+mcpRoot,
+		"META_TOKEN="+userToken,
+		"META_PAGE_TOKEN="+pageToken,
+		"META_APP_SECRET="+appSecret,
+		"META_KEYRING_BACKEND=file",
+		"META_KEYRING_PASSWORD=e2e",
+		"META_BASE_URL="+server.URL,
+		"META_UPLOAD_URL="+server.URL,
+		"META_PAGE_ID=page-1",
+		"META_INSTAGRAM_ID=ig-1",
+		"META_WABA_ID=waba-1",
 		"XDG_CONFIG_HOME="+t.TempDir(),
 	)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	client := mcp.NewClient(&mcp.Implementation{Name: "metactl-e2e", Version: "1.0.0"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "meta-e2e", Version: "1.0.0"}, nil)
 	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: process}, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, session.Close()) })
 
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_instagram_containers_upload",
+		Name: "meta_instagram_containers_upload",
 		Arguments: map[string]any{
 			"args":  []string{"container-1"},
 			"flags": map[string]any{"file": "inside.mp4", "dry-run": true},
@@ -586,7 +589,7 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	}
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_instagram_containers_upload",
+		Name: "meta_instagram_containers_upload",
 		Arguments: map[string]any{
 			"args":  []string{"container-1"},
 			"flags": map[string]any{"file": "escape.mp4", "dry-run": true},
@@ -596,10 +599,10 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	assert.True(t, result.IsError)
 	encoded, err = json.Marshal(result)
 	require.NoError(t, err)
-	assert.Contains(t, string(encoded), "outside METACTL_MCP_ROOT")
+	assert.Contains(t, string(encoded), "outside META_MCP_ROOT")
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_instagram_containers_upload",
+		Name: "meta_instagram_containers_upload",
 		Arguments: map[string]any{
 			"args":  []string{"container-1"},
 			"flags": map[string]any{"file": appSecret + ".mp4", "dry-run": true},
@@ -613,7 +616,7 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	assert.Contains(t, string(encoded), "redacted")
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "metactl_pages_posts_list",
+		Name:      "meta_pages_posts_list",
 		Arguments: map[string]any{"flags": map[string]any{"output": "json"}},
 	})
 	require.NoError(t, err)
@@ -626,7 +629,7 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	assert.NotContains(t, string(encoded), "proof-value")
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_pages_posts_list",
+		Name: "meta_pages_posts_list",
 		Arguments: map[string]any{"flags": map[string]any{
 			"output": "json", "jq": `"` + appSecret + `"`,
 		}},
@@ -638,7 +641,7 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	assert.Contains(t, string(encoded), "redacted")
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_instagram_media_get",
+		Name: "meta_instagram_media_get",
 		Arguments: map[string]any{
 			"args":  []string{appSecret},
 			"flags": map[string]any{"output": "json", "verbose": true},
@@ -653,7 +656,7 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	}
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_instagram_containers_create",
+		Name: "meta_instagram_containers_create",
 		Arguments: map[string]any{
 			"flags": map[string]any{"type": appSecret, "dry-run": true},
 		},
@@ -665,7 +668,7 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	assert.Contains(t, string(encoded), "redacted")
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_pages_posts_create",
+		Name: "meta_pages_posts_create",
 		Arguments: map[string]any{"flags": map[string]any{
 			"message": "safe", "dry-run": true, "output": "csv", "columns": appSecret + "," + pageToken,
 		}},
@@ -678,7 +681,7 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	assert.Contains(t, string(encoded), "redacted")
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_pages_accounts_list",
+		Name: "meta_pages_accounts_list",
 		Arguments: map[string]any{"flags": map[string]any{
 			"fields": "id,name,access_token", "output": "json",
 		}},
@@ -690,7 +693,7 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	assert.Contains(t, string(encoded), "redacted")
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_pages_posts_create",
+		Name: "meta_pages_posts_create",
 		Arguments: map[string]any{"flags": map[string]any{
 			"message": "draft", "published": false, "dry-run": true, "output": "json",
 		}},
@@ -706,7 +709,7 @@ func TestMCPExecutesConfinedSubprocessesWithoutCredentialLeaks(t *testing.T) {
 	assert.NotContains(t, toolOutput.StdErr, `"published":true`)
 
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "metactl_whatsapp_templates_delete",
+		Name: "meta_whatsapp_templates_delete",
 		Arguments: map[string]any{"flags": map[string]any{
 			"name": appSecret, "dry-run": true, "output": "json",
 		}},

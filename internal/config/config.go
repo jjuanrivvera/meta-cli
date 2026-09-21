@@ -44,7 +44,7 @@ func Path() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve user config directory: %w", err)
 	}
-	return filepath.Join(dir, "metactl", "config.yaml"), nil
+	return filepath.Join(dir, "meta", "config.yaml"), nil
 }
 
 func Load(configPath string) (*Config, error) {

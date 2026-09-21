@@ -76,18 +76,21 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 	options := &globalOptions{deps: deps, output: output.FormatTable}
 	safeErr := &credentialWriter{writer: deps.Err, secrets: func() []string {
 		secrets := append([]string(nil), options.redactions...)
-		return append(secrets, os.Getenv("METACTL_TOKEN"), os.Getenv("METACTL_PAGE_TOKEN"), os.Getenv("METACTL_APP_SECRET"))
+		return append(secrets, os.Getenv("META_TOKEN"), os.Getenv("META_PAGE_TOKEN"), os.Getenv("META_APP_SECRET"))
 	}}
 	options.deps.Err = safeErr
 	root := &cobra.Command{
-		Use:           "metactl",
+		Use:           "meta",
 		Short:         "Publish and manage Meta business content",
-		Long:          "metactl manages Instagram publishing, Facebook Pages, and WhatsApp Business through one Graph API client.",
+		Long:          "meta manages Instagram publishing, Facebook Pages, and WhatsApp Business through one Graph API client.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Example:       "  metactl pages posts list --page-id 123\n  metactl instagram publish reel --instagram-id 456 --video ./reel.mp4 --dry-run\n  metactl whatsapp send text --phone-id 789 --to 15551234567 --message 'Hello'",
+		Example:       "  meta pages posts list --page-id 123\n  meta instagram publish reel --instagram-id 456 --video ./reel.mp4 --dry-run\n  meta whatsapp send text --phone-id 789 --to 15551234567 --message 'Hello'",
 		PersistentPreRunE: func(command *cobra.Command, _ []string) error {
-			options.prepareRedactions()
+			// Control-plane inspection never executes an API operation, so it must not unlock the user's keyring.
+			if !skipsCredentialPreflight(command) {
+				options.prepareRedactions()
+			}
 			if err := output.Validate(options.output, options.jq); err != nil {
 				return err
 			}
@@ -131,8 +134,16 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 	return root
 }
 
+func skipsCredentialPreflight(command *cobra.Command) bool {
+	top := command
+	for top.Parent() != nil && top.Parent() != command.Root() {
+		top = top.Parent()
+	}
+	return top.Name() == "__surface" || top.Name() == "mcp"
+}
+
 func (options *globalOptions) prepareRedactions() {
-	options.redactions = []string{os.Getenv("METACTL_TOKEN"), os.Getenv("METACTL_PAGE_TOKEN"), os.Getenv("METACTL_APP_SECRET")}
+	options.redactions = []string{os.Getenv("META_TOKEN"), os.Getenv("META_PAGE_TOKEN"), os.Getenv("META_APP_SECRET")}
 	name, account, err := options.loadAccount()
 	if err != nil {
 		return
@@ -147,17 +158,17 @@ func (options *globalOptions) loadAccount() (string, config.Account, error) {
 	if err != nil {
 		return "", config.Account{}, err
 	}
-	name := config.FirstNonEmpty(options.account, os.Getenv("METACTL_ACCOUNT"), value.Current, "default")
+	name := config.FirstNonEmpty(options.account, os.Getenv("META_ACCOUNT"), value.Current, "default")
 	account := value.Accounts[name]
-	account.BaseURL = config.FirstNonEmpty(options.baseURL, os.Getenv("METACTL_BASE_URL"), account.BaseURL, "https://graph.facebook.com")
-	account.UploadURL = config.FirstNonEmpty(options.uploadURL, os.Getenv("METACTL_UPLOAD_URL"), account.UploadURL, "https://rupload.facebook.com")
-	account.GraphVersion = config.FirstNonEmpty(options.graphVersion, os.Getenv("METACTL_GRAPH_VERSION"), account.GraphVersion, config.DefaultGraphVersion)
-	account.PageID = config.FirstNonEmpty(options.pageID, os.Getenv("METACTL_PAGE_ID"), account.PageID)
-	account.InstagramID = config.FirstNonEmpty(options.instagramID, os.Getenv("METACTL_INSTAGRAM_ID"), account.InstagramID)
-	account.BusinessID = config.FirstNonEmpty(options.businessID, os.Getenv("METACTL_BUSINESS_ID"), account.BusinessID)
-	account.WABAID = config.FirstNonEmpty(options.wabaID, os.Getenv("METACTL_WABA_ID"), account.WABAID)
-	account.PhoneID = config.FirstNonEmpty(options.phoneID, os.Getenv("METACTL_PHONE_ID"), account.PhoneID)
-	account.AppID = config.FirstNonEmpty(options.appID, os.Getenv("METACTL_APP_ID"), account.AppID)
+	account.BaseURL = config.FirstNonEmpty(options.baseURL, os.Getenv("META_BASE_URL"), account.BaseURL, "https://graph.facebook.com")
+	account.UploadURL = config.FirstNonEmpty(options.uploadURL, os.Getenv("META_UPLOAD_URL"), account.UploadURL, "https://rupload.facebook.com")
+	account.GraphVersion = config.FirstNonEmpty(options.graphVersion, os.Getenv("META_GRAPH_VERSION"), account.GraphVersion, config.DefaultGraphVersion)
+	account.PageID = config.FirstNonEmpty(options.pageID, os.Getenv("META_PAGE_ID"), account.PageID)
+	account.InstagramID = config.FirstNonEmpty(options.instagramID, os.Getenv("META_INSTAGRAM_ID"), account.InstagramID)
+	account.BusinessID = config.FirstNonEmpty(options.businessID, os.Getenv("META_BUSINESS_ID"), account.BusinessID)
+	account.WABAID = config.FirstNonEmpty(options.wabaID, os.Getenv("META_WABA_ID"), account.WABAID)
+	account.PhoneID = config.FirstNonEmpty(options.phoneID, os.Getenv("META_PHONE_ID"), account.PhoneID)
+	account.AppID = config.FirstNonEmpty(options.appID, os.Getenv("META_APP_ID"), account.AppID)
 	return name, account, nil
 }
 
@@ -172,19 +183,19 @@ func (options *globalOptions) clientForCommand(command *cobra.Command) (*api.Cli
 	}
 	credential, storeErr := options.credentialFor(name)
 	if storeErr != nil && !options.dryRun {
-		return nil, "", config.Account{}, fmt.Errorf("load credential for account %q: %w; run metactl auth login", name, storeErr)
+		return nil, "", config.Account{}, fmt.Errorf("load credential for account %q: %w; run meta auth login", name, storeErr)
 	}
 	stored, _ := options.deps.Store.Get(name)
 	options.redactions = options.redactions[:0]
 	options.addCredentialRedactions(account, stored, credential)
-	pageOperation := command != nil && strings.HasPrefix(command.CommandPath(), "metactl pages ") &&
-		!strings.HasPrefix(command.CommandPath(), "metactl pages accounts ")
+	pageOperation := command != nil && strings.HasPrefix(command.CommandPath(), "meta pages ") &&
+		!strings.HasPrefix(command.CommandPath(), "meta pages accounts ")
 	token := credential.Token
 	if pageOperation {
 		token = credential.PageToken
 		if token == "" {
 			if !options.dryRun {
-				return nil, "", config.Account{}, fmt.Errorf("no Page access token stored for account %q; run metactl auth pages --save --page-id PAGE_ID", name)
+				return nil, "", config.Account{}, fmt.Errorf("no Page access token stored for account %q; run meta auth pages --save --page-id PAGE_ID", name)
 			}
 			token = "<page-access-token>"
 		}
@@ -203,15 +214,15 @@ func (options *globalOptions) clientForCommand(command *cobra.Command) (*api.Cli
 
 func (options *globalOptions) credentialFor(name string) (auth.Credential, error) {
 	credential, err := options.deps.Store.Get(name)
-	if token := os.Getenv("METACTL_TOKEN"); token != "" {
+	if token := os.Getenv("META_TOKEN"); token != "" {
 		credential.Token = token
 		err = nil
 	}
-	if token := os.Getenv("METACTL_PAGE_TOKEN"); token != "" {
+	if token := os.Getenv("META_PAGE_TOKEN"); token != "" {
 		credential.PageToken = token
 		err = nil
 	}
-	if secret := os.Getenv("METACTL_APP_SECRET"); secret != "" {
+	if secret := os.Getenv("META_APP_SECRET"); secret != "" {
 		credential.AppSecret = secret
 	}
 	return credential, err

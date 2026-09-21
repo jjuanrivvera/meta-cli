@@ -32,13 +32,16 @@ func TestMCPExcludesSetupCommands(t *testing.T) {
 
 func TestMCPFileConfinementRejectsEscapesAndSymlinks(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("META_KEYRING_BACKEND", "file")
+	t.Setenv("META_KEYRING_PASSWORD", "test")
 	inside := filepath.Join(root, "inside.mp4")
 	require.NoError(t, os.WriteFile(inside, []byte("video"), 0o600))
 	outside := filepath.Join(t.TempDir(), "outside.mp4")
 	require.NoError(t, os.WriteFile(outside, []byte("video"), 0o600))
 	symlink := filepath.Join(root, "escape.mp4")
 	require.NoError(t, os.Symlink(outside, symlink))
-	t.Setenv("METACTL_MCP_ROOT", root)
+	t.Setenv("META_MCP_ROOT", root)
 
 	called := false
 	var received ophis.ToolInput

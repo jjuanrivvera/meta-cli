@@ -7,8 +7,8 @@ request is correct. Use disposable content only.
 ## Prepare an isolated account
 
 ```sh
-export METACTL_ACCOUNT=live-smoke
-metactl config set "$METACTL_ACCOUNT" \
+export META_ACCOUNT=live-smoke
+meta config set "$META_ACCOUNT" \
   --graph-version v26.0 \
   --page-id 123456789 \
   --instagram-id 17841400000000000 \
@@ -16,27 +16,27 @@ metactl config set "$METACTL_ACCOUNT" \
   --waba-id 100000000000001 \
   --phone-id 100000000000002 \
   --app-id 100000000000003
-metactl auth login --account "$METACTL_ACCOUNT"
+meta auth login --account "$META_ACCOUNT"
 ```
 
 Enter the token at the hidden prompt. If `appsecret_proof` is required, repeat the login with
-`--prompt-app-secret`, or set `METACTL_APP_SECRET` for that invocation, and enter only disposable
+`--prompt-app-secret`, or set `META_APP_SECRET` for that invocation, and enter only disposable
 test credentials. Derive the Page credential before running any `pages` command:
 
 ```sh
-metactl auth pages --account "$METACTL_ACCOUNT" --page-id 123456789 --save
+meta auth pages --account "$META_ACCOUNT" --page-id 123456789 --save
 ```
 
 ## Read-only checks
 
 ```sh
-metactl doctor --account "$METACTL_ACCOUNT" --json
-metactl auth debug --account "$METACTL_ACCOUNT" -o json
-metactl pages accounts list --account "$METACTL_ACCOUNT" -o json
-metactl instagram media list --account "$METACTL_ACCOUNT" --limit 2 -o json
-metactl instagram limits publishing --account "$METACTL_ACCOUNT" -o json
-metactl whatsapp phones list --account "$METACTL_ACCOUNT" -o json
-metactl whatsapp templates list --account "$METACTL_ACCOUNT" --limit 2 -o json
+meta doctor --account "$META_ACCOUNT" --json
+meta auth debug --account "$META_ACCOUNT" -o json
+meta pages accounts list --account "$META_ACCOUNT" -o json
+meta instagram media list --account "$META_ACCOUNT" --limit 2 -o json
+meta instagram limits publishing --account "$META_ACCOUNT" -o json
+meta whatsapp phones list --account "$META_ACCOUNT" -o json
+meta whatsapp templates list --account "$META_ACCOUNT" --limit 2 -o json
 ```
 
 ## Dry-run writes
@@ -45,15 +45,15 @@ Use a future Unix timestamp accepted by the API:
 
 ```sh
 SCHEDULED_AT=$(date -u -v+1H +%s 2>/dev/null || date -u -d '+1 hour' +%s)
-metactl pages posts create --account "$METACTL_ACCOUNT" \
-  --message "metactl disposable smoke post" --published=false \
+meta pages posts create --account "$META_ACCOUNT" \
+  --message "meta disposable smoke post" --published=false \
   --scheduled-at "$SCHEDULED_AT" --dry-run
-metactl instagram publish reel --account "$METACTL_ACCOUNT" \
-  --video ./disposable-smoke.mp4 --caption "metactl disposable smoke reel" \
+meta instagram publish reel --account "$META_ACCOUNT" \
+  --video ./disposable-smoke.mp4 --caption "meta disposable smoke reel" \
   --cover-url https://cdn.example/disposable-smoke-cover.jpg \
-  --first-comment "metactl disposable smoke comment" --dry-run
-metactl whatsapp templates create --account "$METACTL_ACCOUNT" \
-  --name metactl_disposable_smoke --language en_US --category UTILITY \
+  --first-comment "meta disposable smoke comment" --dry-run
+meta whatsapp templates create --account "$META_ACCOUNT" \
+  --name meta_disposable_smoke --language en_US --category UTILITY \
   --components '[{"type":"BODY","text":"Disposable smoke {{1}}"}]' --dry-run
 ```
 
@@ -61,17 +61,17 @@ Only after inspecting those requests, rerun without `--dry-run` and capture each
 Verify the created object, then delete only that same disposable object:
 
 ```sh
-metactl pages posts get DISPOSABLE_POST_ID --account "$METACTL_ACCOUNT" -o json
-metactl pages posts delete DISPOSABLE_POST_ID --account "$METACTL_ACCOUNT"
-metactl instagram media get DISPOSABLE_MEDIA_ID --account "$METACTL_ACCOUNT" -o json
-metactl instagram comments delete DISPOSABLE_COMMENT_ID --account "$METACTL_ACCOUNT"
-metactl whatsapp templates get DISPOSABLE_TEMPLATE_ID --account "$METACTL_ACCOUNT" -o json
-metactl whatsapp templates delete --name DISPOSABLE_TEMPLATE_NAME \
-  --id DISPOSABLE_TEMPLATE_ID --account "$METACTL_ACCOUNT"
+meta pages posts get DISPOSABLE_POST_ID --account "$META_ACCOUNT" -o json
+meta pages posts delete DISPOSABLE_POST_ID --account "$META_ACCOUNT"
+meta instagram media get DISPOSABLE_MEDIA_ID --account "$META_ACCOUNT" -o json
+meta instagram comments delete DISPOSABLE_COMMENT_ID --account "$META_ACCOUNT"
+meta whatsapp templates get DISPOSABLE_TEMPLATE_ID --account "$META_ACCOUNT" -o json
+meta whatsapp templates delete --name DISPOSABLE_TEMPLATE_NAME \
+  --id DISPOSABLE_TEMPLATE_ID --account "$META_ACCOUNT"
 ```
 
 Do not delete pre-existing content. Finish by removing the local credential:
 
 ```sh
-metactl auth logout --account "$METACTL_ACCOUNT"
+meta auth logout --account "$META_ACCOUNT"
 ```

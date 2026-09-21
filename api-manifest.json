@@ -1,6 +1,6 @@
 {
   "api": "Meta Business Graph API",
-  "binary": "metactl",
+  "binary": "meta",
   "base_url": "https://graph.facebook.com/{version}",
   "graph_version": "v26.0",
   "profile_flag": "account",

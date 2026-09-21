@@ -17,10 +17,10 @@ func TestGeneratedHookExecutionBattery(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the generated hook targets POSIX shells")
 	}
-	input := guardInput{Binary: "metactl", Commands: []guardCommand{
-		{Path: "pages posts list", Tool: "metactl_pages_posts_list", Kind: guardRead},
-		{Path: "pages posts create", Tool: "metactl_pages_posts_create", Kind: guardApproval},
-		{Path: "pages posts delete", Tool: "metactl_pages_posts_delete", Kind: guardIrreversible},
+	input := guardInput{Binary: "meta", Commands: []guardCommand{
+		{Path: "pages posts list", Tool: "meta_pages_posts_list", Kind: guardRead},
+		{Path: "pages posts create", Tool: "meta_pages_posts_create", Kind: guardApproval},
+		{Path: "pages posts delete", Tool: "meta_pages_posts_delete", Kind: guardIrreversible},
 	}}
 	hookPath := filepath.Join(t.TempDir(), "guard.sh")
 	require.NoError(t, os.WriteFile(hookPath, []byte(buildPreToolUseHook(input)), 0o700))
@@ -30,25 +30,25 @@ func TestGeneratedHookExecutionBattery(t *testing.T) {
 		command string
 		deny    bool
 	}{
-		{"blocked", "Bash", "metactl pages posts delete 1", true},
-		{"path prefix", "Bash", "/usr/local/bin/metactl pages posts delete 1", true},
-		{"glued separator", "Bash", "metactl pages posts delete;true", true},
-		{"quote split", "Bash", `metactl pages posts de""lete 1`, true},
-		{"backslash split", "Bash", `metactl pages posts de\lete 1`, true},
-		{"newline", "Bash", "echo ok\nmetactl pages posts delete 1", true},
-		{"semicolon chain", "Bash", "echo ok; metactl pages posts delete 1", true},
-		{"pipe chain", "Bash", "echo ok | metactl pages posts delete 1", true},
-		{"and chain", "Bash", "echo ok && metactl pages posts delete 1", true},
-		{"env prefix", "Bash", "env X=1 metactl pages posts delete 1", true},
-		{"read", "Bash", "metactl pages posts list", false},
-		{"verb in argument", "Bash", "metactl pages posts list --filter message=delete", false},
+		{"blocked", "Bash", "meta pages posts delete 1", true},
+		{"path prefix", "Bash", "/usr/local/bin/meta pages posts delete 1", true},
+		{"glued separator", "Bash", "meta pages posts delete;true", true},
+		{"quote split", "Bash", `meta pages posts de""lete 1`, true},
+		{"backslash split", "Bash", `meta pages posts de\lete 1`, true},
+		{"newline", "Bash", "echo ok\nmeta pages posts delete 1", true},
+		{"semicolon chain", "Bash", "echo ok; meta pages posts delete 1", true},
+		{"pipe chain", "Bash", "echo ok | meta pages posts delete 1", true},
+		{"and chain", "Bash", "echo ok && meta pages posts delete 1", true},
+		{"env prefix", "Bash", "env X=1 meta pages posts delete 1", true},
+		{"read", "Bash", "meta pages posts list", false},
+		{"verb in argument", "Bash", "meta pages posts list --filter message=delete", false},
 		{"source filename", "Bash", "cat pages_posts_delete.go", false},
-		{"raw read", "Bash", "metactl api GET posts/delete", false},
-		{"raw write", "Bash", "metactl api POST posts", true},
-		{"different binary", "Bash", "mymetactl pages posts delete 1", false},
-		{"mcp blocked", "mcp__metactl__pages_posts_delete", "", true},
-		{"mcp read", "mcp__metactl__pages_posts_list", "", false},
-		{"mcp near miss", "mcp__metactl__pages_posts_delete2", "", false},
+		{"raw read", "Bash", "meta api GET posts/delete", false},
+		{"raw write", "Bash", "meta api POST posts", true},
+		{"different binary", "Bash", "mymeta pages posts delete 1", false},
+		{"mcp blocked", "mcp__meta__pages_posts_delete", "", true},
+		{"mcp read", "mcp__meta__pages_posts_list", "", false},
+		{"mcp near miss", "mcp__meta__pages_posts_delete2", "", false},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -58,8 +58,8 @@ func TestGeneratedHookExecutionBattery(t *testing.T) {
 	}
 
 	strictPath := strictToolPath(t)
-	assert.True(t, runGuardHook(t, hookPath, "Bash", "metactl pages posts delete 1", strictPath))
-	assert.False(t, runGuardHook(t, hookPath, "Bash", "metactl pages posts list", strictPath))
+	assert.True(t, runGuardHook(t, hookPath, "Bash", "meta pages posts delete 1", strictPath))
+	assert.False(t, runGuardHook(t, hookPath, "Bash", "meta pages posts list", strictPath))
 }
 
 func runGuardHook(t *testing.T, hookPath, tool, commandText, strictPath string) bool {

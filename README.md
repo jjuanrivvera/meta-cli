@@ -1,6 +1,6 @@
 <div align="center">
 
-# metactl
+# meta
 
 [![CI](https://github.com/jjuanrivvera/meta-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/jjuanrivvera/meta-cli/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jjuanrivvera/meta-cli)](https://github.com/jjuanrivvera/meta-cli/releases/latest)
@@ -13,7 +13,7 @@
 
 **Publish and manage Instagram, Facebook Pages, and WhatsApp Business from one command line.**
 
-[Documentation](https://jjuanrivvera.github.io/meta-cli/) · [Command reference](https://jjuanrivvera.github.io/meta-cli/commands/metactl/)
+[Documentation](https://jjuanrivvera.github.io/meta-cli/) · [Command reference](https://jjuanrivvera.github.io/meta-cli/commands/meta/)
 
 </div>
 
@@ -35,49 +35,55 @@ scoop install meta-cli
 To build the current checkout instead:
 
 ```sh
-go install github.com/jjuanrivvera/meta-cli/cmd/metactl@latest
+go install github.com/jjuanrivvera/meta-cli/cmd/meta@latest
 ```
+
+The installed command is `meta`; an unrelated npm package also installs a command by that name, so
+check `command -v meta` if both are present and adjust your `PATH` order.
+
+The installer reads `META_CLI_VERSION` to pin a release; every runtime setting uses the `META_`
+prefix described below.
 
 ## Quick start
 
 Create an account configuration, then enter a token at the hidden prompt:
 
 ```sh
-metactl config set work \
+meta config set work \
   --graph-version v26.0 \
   --page-id 123456789 \
   --instagram-id 17841400000000000 \
   --waba-id 100000000000000 \
   --phone-id 100000000000001
-metactl auth login --account work
-metactl auth pages --account work --page-id 123456789 --save
-metactl doctor --account work
+meta auth login --account work
+meta auth pages --account work --page-id 123456789 --save
+meta doctor --account work
 ```
 
 Credentials go to the operating-system keyring. On a headless system, an encrypted file backend
-can be selected explicitly with `METACTL_KEYRING_BACKEND=file` and a password supplied through
-`METACTL_KEYRING_PASSWORD`; plaintext credentials are never written to configuration.
+can be selected explicitly with `META_KEYRING_BACKEND=file` and a password supplied through
+`META_KEYRING_PASSWORD`; plaintext credentials are never written to configuration.
 The `auth pages --save` step derives and stores the Page access token that every `pages` command
-uses. Set `METACTL_APP_SECRET` for one invocation or use `auth login --prompt-app-secret` when
+uses. Set `META_APP_SECRET` for one invocation or use `auth login --prompt-app-secret` when
 `appsecret_proof` is required; app secrets are never accepted as command-line values.
 
 Explore and publish:
 
 ```sh
-metactl instagram media list --account work --all -o table
-metactl instagram publish reel --account work --video ./launch.mp4 \
+meta instagram media list --account work --all -o table
+meta instagram publish reel --account work --video ./launch.mp4 \
   --cover-url https://cdn.example/cover.jpg --first-comment "Details in bio" --dry-run
 SCHEDULED_AT=$(date -u -v+1H +%s 2>/dev/null || date -u -d '+1 hour' +%s)
-metactl pages posts create --account work --message "Coming soon" \
+meta pages posts create --account work --message "Coming soon" \
   --published=false --scheduled-at "$SCHEDULED_AT" --dry-run
-metactl whatsapp templates list --account work -o json
+meta whatsapp templates list --account work -o json
 ```
 
 All API operations support deterministic `table`, `json`, `yaml`, `csv`, and `id` output. Use
 `--columns`, `--filter`, `--sort`, `--jq`, `--all`, and `--limit` to shape results. A dry run emits
 copy-pasteable `curl` commands with credentials redacted.
 
-MCP upload tools confine file reads to `METACTL_MCP_ROOT`; when it is unset, the MCP server's
+MCP upload tools confine file reads to `META_MCP_ROOT`; when it is unset, the MCP server's
 working directory is the root. Symlinks that resolve outside that root are rejected.
 
 ## Development

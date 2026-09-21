@@ -28,7 +28,7 @@ func init() {
 func instagramAccounts(options *globalOptions) *cobra.Command {
 	return newGroup("accounts", "Discover the Instagram account linked to a Page", nil, options, operationSpec{
 		Use: "list", Short: "Get the Instagram account linked to the Page", Kind: kindRead,
-		Example: "  metactl instagram accounts list --page-id 123 -o json",
+		Example: "  meta instagram accounts list --page-id 123 -o json",
 		Columns: []string{"id", "name", "instagram_business_account"},
 		Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, account config.Account, _ []string) (any, error) {
 			pageID, err := requireID(account.PageID, "page-id")
@@ -46,7 +46,7 @@ func instagramContainers(options *globalOptions) *cobra.Command {
 	var shareToFeed bool
 	create := operationSpec{
 		Use: "create", Short: "Create an image, video, reel, carousel, or story container", Kind: kindWrite,
-		Example: "  metactl instagram containers create --type reel --url https://cdn.example/reel.mp4 --cover-url https://cdn.example/cover.jpg --caption 'Launch day'",
+		Example: "  meta instagram containers create --type reel --url https://cdn.example/reel.mp4 --cover-url https://cdn.example/cover.jpg --caption 'Launch day'",
 		Flags: func(command *cobra.Command) {
 			command.Flags().StringVar(&mediaType, "type", "image", "container type: image, video, reel, story, carousel-item, or carousel")
 			command.Flags().StringVar(&sourceURL, "url", "", "public image or video URL")
@@ -74,7 +74,7 @@ func instagramContainers(options *globalOptions) *cobra.Command {
 	var uploadFilePath, uploadURL string
 	upload := operationSpec{
 		Use: "upload CONTAINER_ID", Short: "Upload local or hosted video bytes to a resumable container", Kind: kindWrite, Args: cobra.ExactArgs(1),
-		Example: "  metactl instagram containers upload 456 --file ./reel.mp4",
+		Example: "  meta instagram containers upload 456 --file ./reel.mp4",
 		Flags: func(command *cobra.Command) {
 			command.Flags().StringVar(&uploadFilePath, "file", "", "local video file")
 			command.Flags().StringVar(&uploadURL, "url", "", "public hosted video URL")
@@ -83,7 +83,7 @@ func instagramContainers(options *globalOptions) *cobra.Command {
 			return uploadInstagramContainer(command, client, args[0], uploadFilePath, uploadURL)
 		},
 	}
-	publish := operationSpec{Use: "publish CONTAINER_ID", Short: "Publish a finished media container", Kind: kindWrite, Args: cobra.ExactArgs(1), Example: "  metactl instagram containers publish 456 --instagram-id 123", Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, account config.Account, args []string) (any, error) {
+	publish := operationSpec{Use: "publish CONTAINER_ID", Short: "Publish a finished media container", Kind: kindWrite, Args: cobra.ExactArgs(1), Example: "  meta instagram containers publish 456 --instagram-id 123", Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, account config.Account, args []string) (any, error) {
 		instagramID, err := requireID(account.InstagramID, "instagram-id")
 		if err != nil {
 			return nil, err
@@ -193,7 +193,7 @@ func instagramPublish(options *globalOptions) *cobra.Command {
 	var pollInterval time.Duration
 	reel := operationSpec{
 		Use: "reel", Short: "Publish a reel with a cover and optional first comment", Kind: kindWrite,
-		Example: "  metactl instagram publish reel --video ./reel.mp4 --cover-url https://cdn.example/cover.jpg --caption 'Launch' --first-comment 'Details in bio'",
+		Example: "  meta instagram publish reel --video ./reel.mp4 --cover-url https://cdn.example/cover.jpg --caption 'Launch' --first-comment 'Details in bio'",
 		Flags: func(command *cobra.Command) {
 			command.Flags().StringVar(&video, "video", "", "local path or public video URL")
 			command.Flags().StringVar(&coverURL, "cover-url", "", "public cover image URL")

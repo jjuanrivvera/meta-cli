@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	serviceName = "meta-cli"
+	serviceName = "meta"
 	// #nosec G101 -- this is an environment variable name, not a credential value.
-	passwordEnv       = "METACTL_KEYRING_PASSWORD"
-	backendEnv        = "METACTL_KEYRING_BACKEND"
+	passwordEnv       = "META_KEYRING_PASSWORD"
+	backendEnv        = "META_KEYRING_BACKEND"
 	encryptedFilename = "credentials.enc"
 )
 

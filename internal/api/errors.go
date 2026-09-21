@@ -35,7 +35,7 @@ func (err *APIError) Error() string {
 func (err *APIError) Hint() string {
 	switch {
 	case err.Code == 190 || err.StatusCode == 401:
-		return "run metactl auth login and verify the token has not expired"
+		return "run meta auth login and verify the token has not expired"
 	case err.Code == 10 || err.Code == 200 || err.StatusCode == 403:
 		return "check the app review status and permissions for this account"
 	case err.StatusCode == 404:

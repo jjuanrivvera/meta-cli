@@ -21,7 +21,7 @@ import (
 )
 
 func TestApplyVerifiedUpdate(t *testing.T) {
-	archive := tarArchive(t, "metactl", []byte("new-binary"))
+	archive := tarArchive(t, "meta", []byte("new-binary"))
 	sum := sha256.Sum256(archive)
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -37,7 +37,7 @@ func TestApplyVerifiedUpdate(t *testing.T) {
 		}
 	}))
 	t.Cleanup(server.Close)
-	executablePath := filepath.Join(t.TempDir(), "metactl")
+	executablePath := filepath.Join(t.TempDir(), "meta")
 	require.NoError(t, os.WriteFile(executablePath, []byte("old-binary"), 0o700))
 	updater := New(server.Client())
 	updater.APIBase = server.URL
@@ -63,7 +63,7 @@ func TestUpdateValidationFailures(t *testing.T) {
 	assert.NoError(t, updater.validateDownloadURL("https://github.com/file"))
 	assert.Error(t, verifyChecksum("archive", []byte("bad"), []byte("00 archive")))
 	assert.Error(t, verifyChecksum("missing", []byte("bad"), []byte("00 archive")))
-	_, err = extractBinary("bad.tar.gz", []byte("bad"), "metactl")
+	_, err = extractBinary("bad.tar.gz", []byte("bad"), "meta")
 	assert.Error(t, err)
 }
 

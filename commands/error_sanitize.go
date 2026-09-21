@@ -56,7 +56,7 @@ func redactCommandText(message string, secrets []string) string {
 
 func (options *globalOptions) sanitizeError(err error) error {
 	secrets := append([]string(nil), options.redactions...)
-	secrets = append(secrets, os.Getenv("METACTL_TOKEN"), os.Getenv("METACTL_PAGE_TOKEN"), os.Getenv("METACTL_APP_SECRET"))
+	secrets = append(secrets, os.Getenv("META_TOKEN"), os.Getenv("META_PAGE_TOKEN"), os.Getenv("META_APP_SECRET"))
 	return redactCommandError(err, secrets)
 }
 
@@ -70,8 +70,12 @@ func SanitizeError(err error, args []string, dependencies Dependencies) error {
 }
 
 func commandCredentialSecrets(args []string, dependencies Dependencies) []string {
-	secrets := []string{os.Getenv("METACTL_TOKEN"), os.Getenv("METACTL_PAGE_TOKEN"), os.Getenv("METACTL_APP_SECRET")}
-	accountName := os.Getenv("METACTL_ACCOUNT")
+	secrets := []string{os.Getenv("META_TOKEN"), os.Getenv("META_PAGE_TOKEN"), os.Getenv("META_APP_SECRET")}
+	// Control-plane commands are credential-free and must not prompt to unlock an unrelated host keyring.
+	if len(args) > 0 && (args[0] == "__surface" || args[0] == "mcp") {
+		return secrets
+	}
+	accountName := os.Getenv("META_ACCOUNT")
 	for index, argument := range args {
 		switch {
 		case (argument == "--account" || argument == "--profile") && index+1 < len(args):

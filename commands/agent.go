@@ -56,7 +56,7 @@ func classifyCommands(root *cobra.Command) []guardCommand {
 			}
 			kind := guardKind(command, path)
 			joined := strings.Join(path, " ")
-			result = append(result, guardCommand{Path: joined, Tool: "metactl_" + strings.ReplaceAll(joined, " ", "_"), Kind: kind})
+			result = append(result, guardCommand{Path: joined, Tool: "meta_" + strings.ReplaceAll(joined, " ", "_"), Kind: kind})
 		}
 	}
 	walk(root, nil)
@@ -119,11 +119,11 @@ func newAgentGuardCmd(root *cobra.Command, options *globalOptions) *cobra.Comman
 	command := &cobra.Command{
 		Use:   "guard",
 		Short: "Render host policy that blocks irreversible operations",
-		Example: "  metactl agent guard --host codex\n" +
-			"  metactl agent guard --host opencode --write --dir .",
+		Example: "  meta agent guard --host codex\n" +
+			"  meta agent guard --host opencode --write --dir .",
 		RunE: func(command *cobra.Command, _ []string) error {
 			commands := addUserAliases(classifyCommands(root), options.deps.ConfigPath)
-			files, err := renderHostConfig(host, guardInput{Binary: "metactl", Commands: commands, BlockWrites: blockWrites})
+			files, err := renderHostConfig(host, guardInput{Binary: "meta", Commands: commands, BlockWrites: blockWrites})
 			if err != nil {
 				return err
 			}

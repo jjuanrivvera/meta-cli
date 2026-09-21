@@ -29,7 +29,7 @@ func init() {
 func pageAccounts(options *globalOptions) *cobra.Command {
 	return newGroup("accounts", "List Pages and derived Page tokens", nil, options, operationSpec{
 		Use: "list", Short: "List Pages available to the active user token", Kind: kindRead,
-		Example: "  metactl pages accounts list --all -o json", Flags: listFlags,
+		Example: "  meta pages accounts list --all -o json", Flags: listFlags,
 		Columns: []string{"id", "name", "category", "tasks"},
 		Run: func(command *cobra.Command, _ *globalOptions, client *api.Client, _ config.Account, _ []string) (any, error) {
 			all, limit, after, fields := listValues(command)
@@ -52,7 +52,7 @@ func pagePosts(options *globalOptions) *cobra.Command {
 	var scheduled int64
 	create := operationSpec{
 		Use: "create", Short: "Create or schedule a Page feed post", Kind: kindWrite,
-		Example: "  metactl pages posts create --message 'Coming soon' --published=false --scheduled-at 1789900000",
+		Example: "  meta pages posts create --message 'Coming soon' --published=false --scheduled-at 1789900000",
 		Flags: func(command *cobra.Command) {
 			command.Flags().StringVar(&message, "message", "", "post message")
 			command.Flags().StringVar(&link, "link", "", "link URL")
@@ -114,7 +114,7 @@ func pagePosts(options *globalOptions) *cobra.Command {
 
 func pagePhotos(options *globalOptions) *cobra.Command {
 	var sourceURL, caption string
-	create := operationSpec{Use: "create", Short: "Publish a photo from a public URL", Kind: kindWrite, Example: "  metactl pages photos create --url https://cdn.example/photo.jpg --caption 'Launch'", Flags: func(command *cobra.Command) {
+	create := operationSpec{Use: "create", Short: "Publish a photo from a public URL", Kind: kindWrite, Example: "  meta pages photos create --url https://cdn.example/photo.jpg --caption 'Launch'", Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&sourceURL, "url", "", "public photo URL")
 		command.Flags().StringVar(&caption, "caption", "", "photo caption")
 		_ = command.MarkFlagRequired("url")
@@ -206,7 +206,7 @@ func pageVideos(options *globalOptions) *cobra.Command {
 	}}
 	var publishFile, publishTitle, publishDescription, publishThumbnail, publishThumbnailType string
 	var publishScheduled int64
-	publish := operationSpec{Use: "publish", Short: "Upload and publish a Page video in one workflow", Kind: kindWrite, Example: "  metactl pages videos publish --file ./video.mp4 --title 'Launch' --thumbnail-file ./thumb.jpg", Flags: func(command *cobra.Command) {
+	publish := operationSpec{Use: "publish", Short: "Upload and publish a Page video in one workflow", Kind: kindWrite, Example: "  meta pages videos publish --file ./video.mp4 --title 'Launch' --thumbnail-file ./thumb.jpg", Flags: func(command *cobra.Command) {
 		command.Flags().StringVar(&publishFile, "file", "", "local video file")
 		command.Flags().StringVar(&publishTitle, "title", "", "video title")
 		command.Flags().StringVar(&publishDescription, "description", "", "video description")
